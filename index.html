@@ -1034,18 +1034,15 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                 Add everyone at the table. You'll assign items to them in the next step.
             </p>
 
-            <div className="flex flex-col gap-sm mb-md">
+            <div className="flex flex-col gap-sm mb-md" style={{ width: '100%' }}>
                 {people.map((person, i) => (
-                    <div key={person.id} className="card p-sm flex items-center justify-between fade-up" style={{ animationDelay: `${i * 40}ms` }}>
-                        <div className="flex items-center gap-sm">
-                            <div className="avatar" style={{ background: person.color + '20', color: person.color, borderColor: person.color + '40' }}>
-                                {person.name.substring(0, 2).toUpperCase()}
-                            </div>
-                            <span style={{ fontWeight: 500 }}>{person.name}</span>
-                            {person.name === 'You' && <span className="badge badge-info">You</span>}
+                    <div key={person.id} className="card p-sm flex items-center justify-between fade-up" style={{ animationDelay: `${i * 40}ms`, minWidth: 0, overflow: 'hidden' }}>
+                        <div className="flex items-center gap-sm" style={{ minWidth: 0, overflow: 'hidden' }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: person.color, flexShrink: 0 }} />
+                            <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</span>
                         </div>
                         {person.name !== 'You' && (
-                            <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)' }} onClick={() => removePerson(person.id)}>
+                            <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} onClick={() => removePerson(person.id)}>
                                 <Icon name="x" size={14} />
                             </button>
                         )}
@@ -1364,7 +1361,12 @@ const Summary = ({ result, onNew, onBack }) => {
     const [copiedPerson, setCopiedPerson] = React.useState(null);
 
     const personById = Object.fromEntries(people.map(p => [p.id, p]));
-    const sorted = [...people].sort((a, b) => (shares[b.id] || 0) - (shares[a.id] || 0));
+    // Sort by amount descending, but always put "You" last
+    const sorted = [...people].sort((a, b) => {
+        if (a.name === 'You') return 1;
+        if (b.name === 'You') return -1;
+        return (shares[b.id] || 0) - (shares[a.id] || 0);
+    });
 
     const summaryText = `${receipt.restaurant} — ${new Date().toLocaleDateString()}\nTotal: ${formatCurrency(receipt.total)}\n\n` +
         sorted.map(p => `${p.name}: ${formatCurrency(shares[p.id] || 0)}`).join('\n');
@@ -1415,7 +1417,7 @@ const Summary = ({ result, onNew, onBack }) => {
                 <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
                     <div className="flex items-center justify-between">
                         <p className="input-label">What everyone owes</p>
-                        <p className="t-caption text-tertiary">tap amount to copy for Venmo</p>
+                        <p className="t-caption text-tertiary">tap to copy</p>
                     </div>
                 </div>
                 {sorted.map((p, i) => {
@@ -1426,11 +1428,8 @@ const Summary = ({ result, onNew, onBack }) => {
                         <div key={p.id} className="p-sm fade-up" style={{ animationDelay: `${i * 60}ms`, borderBottom: i < sorted.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
                             <div className="flex items-center justify-between mb-xs">
                                 <div className="flex items-center gap-sm">
-                                    <div className="avatar" style={{ background: p.color + '20', color: p.color, borderColor: p.color + '40' }}>
-                                        {p.name.substring(0, 2).toUpperCase()}
-                                    </div>
-                                    <span style={{ fontWeight: 500 }}>{p.name}</span>
-                                    {p.name === 'You' && <span className="badge badge-info">You</span>}
+                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{p.name}</span>
                                 </div>
                                 <button
                                     onClick={() => copyAmountForVenmo(p, amount)}
@@ -1453,7 +1452,6 @@ const Summary = ({ result, onNew, onBack }) => {
                                     }
                                 </button>
                             </div>
-                            {/* Bar */}
                             <div style={{ height: 3, background: 'var(--surface-3)', borderRadius: 2, overflow: 'hidden' }}>
                                 <div style={{
                                     height: '100%',
