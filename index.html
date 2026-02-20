@@ -1153,7 +1153,6 @@ const SplitEditor = ({ receipt, people, onComplete }) => {
 
     const getShares = () => {
         if (splitMode === 'item') return computeItemSplit();
-        if (splitMode === 'custom') return computeCustomSplit();
         return computePercentSplit();
     };
 
@@ -1176,8 +1175,6 @@ const SplitEditor = ({ receipt, people, onComplete }) => {
 
     const canComplete = splitMode === 'item'
         ? unassignedItems === 0
-        : splitMode === 'custom'
-        ? Math.abs(totalAssigned - total) < 0.02
         : Math.abs(percentTotal - 100) < 0.1;
 
     return (
@@ -1284,45 +1281,6 @@ const SplitEditor = ({ receipt, people, onComplete }) => {
                                 </div>
                             );
                         })}
-                    </div>
-                </div>
-            )}
-
-            {/* ── CUSTOM MODE ── */}
-            {splitMode === 'custom' && (
-                <div className="card p-sm mb-md">
-                    <p className="t-caption text-secondary mb-sm">
-                        Enter the exact amount each person owes. Must add up to {formatCurrency(total)}.
-                    </p>
-                    {people.map(p => (
-                        <div key={p.id} className="flex items-center gap-sm mb-sm">
-                            <div className="avatar" style={{ background: p.color + '20', color: p.color, borderColor: p.color + '40', flexShrink: 0 }}>
-                                {p.name.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{p.name}</p>
-                            </div>
-                            <div style={{ position: 'relative', width: 120 }}>
-                                <span className="input-prefix" style={{ left: 10 }}>$</span>
-                                <input
-                                    className="input-field has-prefix"
-                                    type="number"
-                                    style={{ height: 44, paddingLeft: 24 }}
-                                    placeholder="0.00"
-                                    value={customAmounts[p.id]}
-                                    onChange={e => setCustomAmounts(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                />
-                            </div>
-                        </div>
-                    ))}
-                    <div className={`flex justify-between p-sm rounded mt-xs`} style={{
-                        background: Math.abs(totalAssigned - total) < 0.02 ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
-                        borderRadius: 8
-                    }}>
-                        <span className="t-caption text-secondary">Total entered</span>
-                        <span className={`t-caption ${Math.abs(totalAssigned - total) < 0.02 ? 'text-success' : ''}`} style={{ fontWeight: 600 }}>
-                            {formatCurrency(totalAssigned)} / {formatCurrency(total)}
-                        </span>
                     </div>
                 </div>
             )}
