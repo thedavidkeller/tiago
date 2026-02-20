@@ -474,6 +474,11 @@
             justify-content: center;
         }
 
+        /* Prevent iOS auto-zoom on input focus */
+        @media screen and (-webkit-min-device-pixel-ratio: 0) {
+            input, select, textarea { font-size: 16px !important; }
+        }
+
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -1058,7 +1063,7 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                         value={newName}
                         onChange={e => setNewName(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addPerson()}
-                        style={{ height: 52 }}
+                        style={{ height: 52, fontSize: 16 }}
                     />
                 </div>
                 <Button variant="secondary" onClick={addPerson} disabled={!newName.trim()} icon="plus">
