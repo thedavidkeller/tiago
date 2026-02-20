@@ -529,14 +529,15 @@
         .person-chip {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
+            gap: 7px;
+            padding: 7px 14px;
             border-radius: var(--radius-full);
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: all 120ms ease;
             border: 1px solid transparent;
+            min-height: 36px;
         }
         .person-chip.assigned {
             border-color: currentColor;
@@ -1220,13 +1221,10 @@ const SplitEditor = ({ receipt, people, onComplete }) => {
                 <p className="input-label mb-xs">Split method</p>
                 <div className="tab-bar">
                     <button className={`tab ${splitMode === 'item' ? 'active' : ''}`} onClick={() => setSplitMode('item')}>
-                        <Icon name="receipt" size={13} />&nbsp; By item
-                    </button>
-                    <button className={`tab ${splitMode === 'custom' ? 'active' : ''}`} onClick={() => setSplitMode('custom')}>
-                        <Icon name="dollar" size={13} />&nbsp; Custom $
+                        <Icon name="receipt" size={13} />&nbsp; Itemized
                     </button>
                     <button className={`tab ${splitMode === 'percent' ? 'active' : ''}`} onClick={() => setSplitMode('percent')}>
-                        <Icon name="percent" size={13} />&nbsp; By %
+                        <Icon name="percent" size={13} />&nbsp; By Percentage
                     </button>
                 </div>
             </div>
@@ -1402,9 +1400,10 @@ const SplitEditor = ({ receipt, people, onComplete }) => {
 
 // ─── SUMMARY ───────────────────────────────────────────────────────────────
 
-const Summary = ({ result, onNew }) => {
+const Summary = ({ result, onNew, onBack }) => {
     const { people, shares, receipt, splitMode } = result;
     const [copied, setCopied] = React.useState(false);
+    const [copiedPerson, setCopiedPerson] = React.useState(null);
 
     const personById = Object.fromEntries(people.map(p => [p.id, p]));
     const sorted = [...people].sort((a, b) => (shares[b.id] || 0) - (shares[a.id] || 0));
@@ -1420,10 +1419,25 @@ const Summary = ({ result, onNew }) => {
         } catch {}
     };
 
+    const copyAmountForVenmo = async (person, amount) => {
+        try {
+            await navigator.clipboard.writeText(amount.toFixed(2));
+            setCopiedPerson(person.id);
+            setTimeout(() => setCopiedPerson(null), 2000);
+        } catch {}
+    };
+
     const maxShare = Math.max(...Object.values(shares));
 
     return (
         <div className="fade-up">
+            {/* Back button */}
+            <div className="mb-md">
+                <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ color: 'var(--text-tertiary)', paddingLeft: 0 }}>
+                    <Icon name="arrowLeft" size={14} /> Back
+                </button>
+            </div>
+
             {/* Hero */}
             <div className="card p-lg mb-md text-center" style={{
                 background: 'linear-gradient(135deg, rgba(212,43,43,0.07) 0%, rgba(10,10,10,0.04) 100%)',
@@ -1434,18 +1448,22 @@ const Summary = ({ result, onNew }) => {
                     {formatCurrency(receipt.total)}
                 </p>
                 <p className="t-caption text-tertiary mt-sm">
-                    Split {splitMode === 'item' ? 'by item' : splitMode === 'custom' ? 'custom amounts' : 'by percentage'} among {people.length} people
+                    Split {splitMode === 'item' ? 'itemized' : 'by percentage'} among {people.length} people
                 </p>
             </div>
 
             {/* Breakdown */}
             <div className="card mb-md">
                 <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
-                    <p className="input-label">What everyone owes</p>
+                    <div className="flex items-center justify-between">
+                        <p className="input-label">What everyone owes</p>
+                        <p className="t-caption text-tertiary">tap amount to copy for Venmo</p>
+                    </div>
                 </div>
                 {sorted.map((p, i) => {
                     const amount = shares[p.id] || 0;
                     const barWidth = maxShare > 0 ? (amount / maxShare) * 100 : 0;
+                    const isCopied = copiedPerson === p.id;
                     return (
                         <div key={p.id} className="p-sm fade-up" style={{ animationDelay: `${i * 60}ms`, borderBottom: i < sorted.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
                             <div className="flex items-center justify-between mb-xs">
@@ -1456,7 +1474,26 @@ const Summary = ({ result, onNew }) => {
                                     <span style={{ fontWeight: 500 }}>{p.name}</span>
                                     {p.name === 'You' && <span className="badge badge-info">You</span>}
                                 </div>
-                                <span style={{ fontWeight: 700, fontSize: 18, color: p.color }}>{formatCurrency(amount)}</span>
+                                <button
+                                    onClick={() => copyAmountForVenmo(p, amount)}
+                                    style={{
+                                        background: isCopied ? p.color + '20' : 'transparent',
+                                        border: `1px solid ${isCopied ? p.color + '60' : 'transparent'}`,
+                                        borderRadius: 8,
+                                        padding: '6px 10px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        transition: 'all 160ms ease',
+                                        color: p.color
+                                    }}
+                                >
+                                    {isCopied
+                                        ? <><Icon name="check" size={13} color={p.color} /><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(amount)}</span></>
+                                        : <><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(amount)}</span><Icon name="copy" size={13} color="var(--text-tertiary)" /></>
+                                    }
+                                </button>
                             </div>
                             {/* Bar */}
                             <div style={{ height: 3, background: 'var(--surface-3)', borderRadius: 2, overflow: 'hidden' }}>
@@ -1472,7 +1509,6 @@ const Summary = ({ result, onNew }) => {
                         </div>
                     );
                 })}
-            </div>
 
             {/* Receipt detail */}
             <div className="card p-sm mb-md" style={{ background: 'var(--surface-2)' }}>
@@ -1648,19 +1684,18 @@ const App = () => {
                                 <h2 className="t-headline">{stepLabel}</h2>
                                 {stepDesc && <p className="t-body text-secondary mt-1">{stepDesc}</p>}
                             </div>
-                            {step !== 'scan' && (
-                                <button
-                                    className={`btn btn-ghost btn-sm ${step === 'split' ? '' : 'hide-on-mobile-step'}`}
-                                    onClick={() => {
-                                        if (step === 'items') navigate('scan');
-                                        else if (step === 'people') navigate(receipt ? 'scan' : 'items');
-                                        else if (step === 'split') navigate('people');
-                                    }}
-                                    style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}
-                                >
-                                    <Icon name="arrowLeft" size={14} /> Back
-                                </button>
-                            )}
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => {
+                                    if (step === 'scan') handleNew();
+                                    else if (step === 'items') navigate('scan');
+                                    else if (step === 'people') navigate(receipt ? 'scan' : 'items');
+                                    else if (step === 'split') navigate('people');
+                                }}
+                                style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}
+                            >
+                                <Icon name="arrowLeft" size={14} /> Back
+                            </button>
                         </div>
                     </div>
                 )}
@@ -1691,7 +1726,7 @@ const App = () => {
                         />
                     )}
                     {step === 'summary' && result && (
-                        <Summary result={result} onNew={handleNew} />
+                        <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} />
                     )}
                 </div>
             </div>
