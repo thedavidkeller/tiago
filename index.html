@@ -18,30 +18,30 @@
             --primary: #D42B2B;
             --primary-hover: #b82020;
             --primary-active: #9e1818;
-            --primary-ghost-bg: rgba(212, 43, 43, 0.07);
-            --secondary: #1a1a1a;
+            --primary-ghost-bg: rgba(212, 43, 43, 0.1);
+            --secondary: #f0f0ea;
             --accent: #D42B2B;
             --accent-warm: #e85d04;
 
-            --bg-app: #ffffff;
-            --surface-1: #f7f7f5;
-            --surface-2: #f0efec;
-            --surface-3: #e5e4e0;
-            --surface-4: #d8d7d2;
+            --bg-app: #0e0e0d;
+            --surface-1: #181817;
+            --surface-2: #202020;
+            --surface-3: #2a2a28;
+            --surface-4: #333330;
 
-            --text-primary: #0a0a0a;
-            --text-secondary: #4a4a4a;
-            --text-tertiary: #888880;
-            --text-disabled: #c0c0b8;
+            --text-primary: #f0f0ea;
+            --text-secondary: #b8b8b0;
+            --text-tertiary: #7a7a72;
+            --text-disabled: #4a4a44;
 
-            --success: #16a34a;
-            --warning: #d97706;
+            --success: #22C55E;
+            --warning: #F59E0B;
             --error: #D42B2B;
 
-            --border-base: rgba(0,0,0,0.08);
-            --border-hover: rgba(0,0,0,0.14);
+            --border-base: rgba(255,255,255,0.07);
+            --border-hover: rgba(255,255,255,0.12);
             --border-focus: rgba(212, 43, 43, 0.5);
-            --border-divider: rgba(0,0,0,0.05);
+            --border-divider: rgba(255,255,255,0.04);
 
             --space-4xs: 4px;
             --space-3xs: 8px;
@@ -58,9 +58,9 @@
             --radius-lg: 24px;
             --radius-full: 9999px;
 
-            --shadow-low: 0 1px 3px rgba(0,0,0,0.08);
-            --shadow-mid: 0 4px 16px rgba(0,0,0,0.12);
-            --shadow-high: 0 8px 32px rgba(0,0,0,0.16);
+            --shadow-low: 0 1px 3px rgba(0,0,0,0.2);
+            --shadow-mid: 0 4px 16px rgba(0,0,0,0.3);
+            --shadow-high: 0 8px 32px rgba(0,0,0,0.4);
 
             --font-sans: 'DM Sans', sans-serif;
             --font-serif: 'Fraunces', serif;
@@ -86,7 +86,7 @@
             left: -20%;
             width: 70%;
             height: 70%;
-            background: radial-gradient(circle, rgba(212, 43, 43, 0.08) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(212, 43, 43, 0.1) 0%, transparent 70%);
             z-index: 0;
             pointer-events: none;
         }
@@ -98,7 +98,7 @@
             right: -10%;
             width: 50%;
             height: 50%;
-            background: radial-gradient(circle, rgba(10, 10, 10, 0.05) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(212, 43, 43, 0.05) 0%, transparent 70%);
             z-index: 0;
             pointer-events: none;
         }
@@ -131,7 +131,7 @@
 
         /* Surfaces */
         .card {
-            background: rgba(247, 247, 245, 0.85);
+            background: rgba(24, 24, 23, 0.7);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--border-base);
@@ -192,7 +192,7 @@
 
         .input-field {
             height: 52px;
-            background: #fff;
+            background: var(--surface-2);
             border: 1px solid var(--border-base);
             border-radius: var(--radius-sm);
             padding: 0 16px;
@@ -202,7 +202,7 @@
             transition: border-color 160ms ease, box-shadow 160ms ease;
             width: 100%;
         }
-        .input-field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(212,43,43,0.12); }
+        .input-field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(212,43,43,0.15); }
         .input-field::placeholder { color: var(--text-disabled); }
         .input-field.has-prefix { padding-left: 36px; }
 
@@ -334,7 +334,6 @@
             border-radius: var(--radius-sm);
             padding: 4px;
             gap: 2px;
-            border: 1px solid var(--border-base);
         }
         .tab {
             flex: 1;
@@ -353,9 +352,8 @@
             font-family: var(--font-sans);
         }
         .tab.active {
-            background: #fff;
+            background: var(--surface-4);
             color: var(--text-primary);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         }
         .tab:hover:not(.active) { color: var(--text-secondary); }
 
@@ -372,11 +370,11 @@
             cursor: pointer;
             transition: all 200ms ease;
             text-align: center;
-            background: rgba(212,43,43,0.02);
+            background: rgba(212,43,43,0.03);
         }
         .upload-zone:hover, .upload-zone.drag-over {
             border-color: var(--primary);
-            background: rgba(212,43,43,0.05);
+            background: rgba(212,43,43,0.07);
         }
 
         /* Skeleton loader */
@@ -483,19 +481,22 @@
 
         /* Responsive */
         @media (max-width: 640px) {
-            .container { padding: 0 16px; }
+            .container { padding: 0 24px; }
             .t-display { font-size: 36px; }
             .t-headline { font-size: 26px; }
             .grid-2 { grid-template-columns: 1fr; }
             .grid-3 { grid-template-columns: 1fr 1fr; }
             .hide-mobile { display: none; }
+            .step-header { text-align: center; }
+            .step-header .btn-ghost { display: none; }
+            .upload-zone { padding: 40px 24px; }
         }
 
         /* API key gate overlay */
         .api-gate {
             position: fixed;
             inset: 0;
-            background: rgba(255,255,255,0.95);
+            background: rgba(14,14,13,0.95);
             backdrop-filter: blur(20px);
             z-index: 100;
             display: flex;
@@ -1633,7 +1634,7 @@ const App = () => {
                                 </React.Fragment>
                             ))}
                         </div>
-                        <div className="flex items-end justify-between">
+                        <div className="flex items-end justify-between step-header">
                             <div>
                                 <h2 className="t-headline">{stepLabel}</h2>
                                 {stepDesc && <p className="t-body text-secondary mt-1">{stepDesc}</p>}
