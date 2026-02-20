@@ -488,7 +488,7 @@
             .grid-3 { grid-template-columns: 1fr 1fr; }
             .hide-mobile { display: none; }
             .step-header { text-align: center; }
-            .step-header .btn-ghost { display: none; }
+            .hide-on-mobile-step { display: none; }
             .upload-zone { padding: 40px 24px; }
         }
 
@@ -581,9 +581,16 @@
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────
 
+const YOU_COLOR = '#22C55E'; // green for "You"
 const PERSON_COLORS = [
-    '#6366F1', '#06B6D4', '#22C55E', '#F59E0B',
-    '#EC4899', '#8B5CF6', '#EF4444', '#14B8A6'
+    '#D42B2B', // red
+    '#06B6D4', // cyan
+    '#F59E0B', // amber
+    '#8B5CF6', // purple
+    '#EC4899', // pink
+    '#14B8A6', // teal
+    '#f97316', // orange
+    '#6366F1', // indigo
 ];
 
 const formatCurrency = (val) =>
@@ -997,18 +1004,20 @@ const ManualEntry = ({ initial, onComplete }) => {
 
 // ─── PEOPLE SETUP ──────────────────────────────────────────────────────────
 
-const PeopleSetup = ({ onComplete }) => {
-    const [people, setPeople] = React.useState([
-        { id: genId(), name: 'You', color: PERSON_COLORS[0] }
+const PeopleSetup = ({ onComplete, initialPeople }) => {
+    const [people, setPeople] = React.useState(initialPeople || [
+        { id: genId(), name: 'You', color: YOU_COLOR }
     ]);
     const [newName, setNewName] = React.useState('');
 
     const addPerson = () => {
         if (!newName.trim()) return;
+        // Count non-You people to pick next color
+        const othersCount = people.filter(p => p.name !== 'You').length;
         setPeople(prev => [...prev, {
             id: genId(),
             name: newName.trim(),
-            color: PERSON_COLORS[prev.length % PERSON_COLORS.length]
+            color: PERSON_COLORS[othersCount % PERSON_COLORS.length]
         }]);
         setNewName('');
     };
@@ -1597,7 +1606,7 @@ const App = () => {
                         <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 300, letterSpacing: '-0.01em' }}>
                             tiago
                             <span style={{ fontStyle: 'italic', color: 'var(--text-tertiary)', marginLeft: 8, fontSize: 16, fontWeight: 300 }}>
-                                / split
+                                / the splitter
                             </span>
                         </h1>
                     </div>
@@ -1641,13 +1650,13 @@ const App = () => {
                             </div>
                             {step !== 'scan' && (
                                 <button
-                                    className="btn btn-ghost btn-sm"
+                                    className={`btn btn-ghost btn-sm ${step === 'split' ? '' : 'hide-on-mobile-step'}`}
                                     onClick={() => {
                                         if (step === 'items') navigate('scan');
                                         else if (step === 'people') navigate(receipt ? 'scan' : 'items');
                                         else if (step === 'split') navigate('people');
                                     }}
-                                    style={{ color: 'var(--text-tertiary)' }}
+                                    style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}
                                 >
                                     <Icon name="arrowLeft" size={14} /> Back
                                 </button>
@@ -1672,7 +1681,7 @@ const App = () => {
                         />
                     )}
                     {step === 'people' && (
-                        <PeopleSetup onComplete={handlePeopleComplete} />
+                        <PeopleSetup onComplete={handlePeopleComplete} initialPeople={people} />
                     )}
                     {step === 'split' && receipt && people && (
                         <SplitEditor
