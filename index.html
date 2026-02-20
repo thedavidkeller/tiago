@@ -1582,13 +1582,11 @@ const App = () => {
         summary: 'Done'
     }[step];
 
+    // Only show subtext on summary (restaurant name) and items
     const stepDesc = {
-        scan: 'Photo or manual entry',
         items: 'Review & adjust',
-        people: 'Add everyone',
-        split: 'Choose your method',
         summary: receipt?.restaurant || ''
-    }[step];
+    }[step] || null;
 
     return (
         <>
@@ -1643,18 +1641,29 @@ const App = () => {
                                 <h2 className="t-headline">{stepLabel}</h2>
                                 {stepDesc && <p className="t-body text-secondary mt-1">{stepDesc}</p>}
                             </div>
-                            <button
-                                className="btn btn-ghost btn-sm"
-                                onClick={() => {
-                                    if (step === 'scan') handleNew();
-                                    else if (step === 'items') navigate('scan');
-                                    else if (step === 'people') navigate(receipt ? 'scan' : 'items');
-                                    else if (step === 'split') navigate('people');
-                                }}
-                                style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}
-                            >
-                                <Icon name="arrowLeft" size={14} /> Back
-                            </button>
+                            <div className="flex gap-sm items-center">
+                                {step === 'scan' && receipt && (
+                                    <button
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={() => navigate('people')}
+                                        style={{ color: 'var(--primary)', flexShrink: 0 }}
+                                    >
+                                        Continue <Icon name="arrowRight" size={14} />
+                                    </button>
+                                )}
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => {
+                                        if (step === 'scan') handleNew();
+                                        else if (step === 'items') navigate('scan');
+                                        else if (step === 'people') navigate(receipt ? 'scan' : 'items');
+                                        else if (step === 'split') navigate('people');
+                                    }}
+                                    style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}
+                                >
+                                    <Icon name="arrowLeft" size={14} /> Back
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
