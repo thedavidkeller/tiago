@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiago — Split the bill, keep the friends</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,700;1,9..144,300;1,9..144,400;1,9..144,700&display=swap" rel="stylesheet">
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #6366F1;
+            --primary-hover: #4f52e8;
+            --primary-active: #3f42db;
+            --primary-ghost-bg: rgba(99, 102, 241, 0.08);
+            --secondary: #8B5CF6;
+            --accent: #06B6D4;
+            --accent-warm: #F59E0B;
+
+            --bg-app: #0e0e0d;
+            --surface-1: #181817;
+            --surface-2: #202020;
+            --surface-3: #2a2a28;
+            --surface-4: #333330;
+
+            --text-primary: #f0f0ea;
+            --text-secondary: #b8b8b0;
+            --text-tertiary: #7a7a72;
+            --text-disabled: #4a4a44;
+
+            --success: #22C55E;
+            --warning: #F59E0B;
+            --error: #EF4444;
+
+            --border-base: rgba(255,255,255,0.07);
+            --border-hover: rgba(255,255,255,0.12);
+            --border-focus: rgba(99, 102, 241, 0.5);
+            --border-divider: rgba(255,255,255,0.04);
+
+            --space-4xs: 4px;
+            --space-3xs: 8px;
+            --space-2xs: 12px;
+            --space-xs: 16px;
+            --space-sm: 24px;
+            --space-md: 32px;
+            --space-lg: 48px;
+            --space-xl: 64px;
+
+            --radius-xs: 4px;
+            --radius-sm: 8px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --radius-full: 9999px;
+
+            --shadow-low: 0 1px 3px rgba(0,0,0,0.2);
+            --shadow-mid: 0 4px 16px rgba(0,0,0,0.3);
+            --shadow-high: 0 8px 32px rgba(0,0,0,0.4);
+
+            --font-sans: 'DM Sans', sans-serif;
+            --font-serif: 'Fraunces', serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -30%;
+            left: -20%;
+            width: 70%;
+            height: 70%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -20%;
+            right: -10%;
+            width: 50%;
+            height: 50%;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        #root { position: relative; z-index: 1; }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 32px;
+            width: 100%;
+        }
+
+        /* Typography */
+        .t-display { font-family: var(--font-serif); font-size: 48px; font-weight: 300; line-height: 1; letter-spacing: -0.02em; }
+        .t-headline { font-family: var(--font-serif); font-size: 32px; font-weight: 300; line-height: 1.1; letter-spacing: -0.01em; }
+        .t-title { font-size: 20px; font-weight: 600; line-height: 1.2; }
+        .t-body { font-size: 16px; font-weight: 400; line-height: 1.6; }
+        .t-label { font-size: 13px; font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; }
+        .t-caption { font-size: 12px; font-weight: 400; }
+        .t-mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+        .text-secondary { color: var(--text-secondary); }
+        .text-tertiary { color: var(--text-tertiary); }
+        .text-accent { color: var(--accent); }
+        .text-success { color: var(--success); }
+        .text-error { color: var(--error); }
+        .text-primary-color { color: var(--primary); }
+        .text-italic { font-style: italic; }
+
+        /* Surfaces */
+        .card {
+            background: rgba(24, 24, 23, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-md);
+        }
+
+        .card-hover {
+            transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+        }
+        .card-hover:hover {
+            border-color: var(--border-hover);
+            box-shadow: var(--shadow-mid);
+            transform: translateY(-1px);
+            cursor: pointer;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 52px;
+            padding: 0 24px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-sans);
+            font-weight: 500;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 160ms ease;
+            outline: none;
+            gap: 8px;
+            white-space: nowrap;
+            border: none;
+        }
+        .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .btn:active:not(:disabled) { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+
+        .btn-secondary { background: transparent; border: 1px solid var(--border-hover); color: var(--text-primary); }
+        .btn-secondary:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-focus); }
+
+        .btn-ghost { background: transparent; border: none; color: var(--text-secondary); padding: 0 12px; }
+        .btn-ghost:hover:not(:disabled) { color: var(--text-primary); background: var(--surface-2); }
+
+        .btn-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--error); }
+        .btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.25); }
+
+        .btn-sm { height: 36px; padding: 0 14px; font-size: 13px; border-radius: 6px; }
+        .btn-xs { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 4px; }
+        .btn-icon { width: 40px; height: 40px; padding: 0; border-radius: var(--radius-sm); }
+
+        /* Inputs */
+        .input-wrap { display: flex; flex-direction: column; gap: 6px; }
+        .input-label { font-size: 12px; font-weight: 500; color: var(--text-tertiary); letter-spacing: 0.04em; text-transform: uppercase; }
+
+        .input-field {
+            height: 52px;
+            background: var(--surface-2);
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            padding: 0 16px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 15px;
+            transition: border-color 160ms ease, box-shadow 160ms ease;
+            width: 100%;
+        }
+        .input-field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+        .input-field::placeholder { color: var(--text-disabled); }
+        .input-field.has-prefix { padding-left: 36px; }
+
+        .input-prefix {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+            font-size: 15px;
+            pointer-events: none;
+        }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .fade-up { animation: fadeUp 500ms cubic-bezier(0,0,0.2,1) forwards; }
+        .fade-in { animation: fadeIn 300ms ease forwards; }
+
+        .stagger-1 { animation-delay: 60ms; }
+        .stagger-2 { animation-delay: 120ms; }
+        .stagger-3 { animation-delay: 180ms; }
+        .stagger-4 { animation-delay: 240ms; }
+        .stagger-5 { animation-delay: 300ms; }
+
+        .spin { animation: spin 800ms linear infinite; }
+        .pulse { animation: pulse 1.5s ease infinite; }
+
+        /* Layout */
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .flex-1 { flex: 1; }
+        .items-center { align-items: center; }
+        .items-start { align-items: flex-start; }
+        .justify-between { justify-content: space-between; }
+        .justify-center { justify-content: center; }
+        .justify-end { justify-content: justify-end; }
+        .gap-xs { gap: 8px; }
+        .gap-sm { gap: 16px; }
+        .gap-md { gap: 24px; }
+        .gap-lg { gap: 32px; }
+        .wrap { flex-wrap: wrap; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+        .p-xs { padding: 12px; }
+        .p-sm { padding: 16px; }
+        .p-md { padding: 24px; }
+        .p-lg { padding: 32px; }
+        .px-md { padding-left: 24px; padding-right: 24px; }
+        .py-sm { padding-top: 16px; padding-bottom: 16px; }
+
+        .mb-2xs { margin-bottom: 8px; }
+        .mb-xs { margin-bottom: 12px; }
+        .mb-sm { margin-bottom: 16px; }
+        .mb-md { margin-bottom: 24px; }
+        .mb-lg { margin-bottom: 32px; }
+        .mb-xl { margin-bottom: 48px; }
+        .mt-sm { margin-top: 16px; }
+        .mt-md { margin-top: 24px; }
+        .mt-lg { margin-top: 32px; }
+        .ml-auto { margin-left: auto; }
+
+        .w-full { width: 100%; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+
+        /* Divider */
+        .divider {
+            height: 1px;
+            background: var(--border-divider);
+            width: 100%;
+        }
+
+        /* Avatar */
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            border: 1px solid var(--border-base);
+            flex-shrink: 0;
+        }
+
+        /* Pill / Badge */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .badge-success { background: rgba(34,197,94,0.12); color: var(--success); }
+        .badge-warning { background: rgba(245,158,11,0.12); color: var(--warning); }
+        .badge-info { background: rgba(99,102,241,0.12); color: var(--primary); }
+        .badge-neutral { background: var(--surface-3); color: var(--text-secondary); }
+
+        /* Tab */
+        .tab-bar {
+            display: flex;
+            background: var(--surface-2);
+            border-radius: var(--radius-sm);
+            padding: 4px;
+            gap: 2px;
+        }
+        .tab {
+            flex: 1;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 160ms ease;
+            color: var(--text-tertiary);
+            border: none;
+            background: transparent;
+            font-family: var(--font-sans);
+        }
+        .tab.active {
+            background: var(--surface-4);
+            color: var(--text-primary);
+        }
+        .tab:hover:not(.active) { color: var(--text-secondary); }
+
+        /* Upload zone */
+        .upload-zone {
+            border: 2px dashed var(--border-hover);
+            border-radius: var(--radius-md);
+            padding: 48px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 200ms ease;
+            text-align: center;
+            background: rgba(99,102,241,0.03);
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--primary);
+            background: rgba(99,102,241,0.07);
+        }
+
+        /* Skeleton loader */
+        .skeleton {
+            background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: var(--radius-xs);
+        }
+
+        /* Checkbox */
+        .checkbox-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid var(--border-hover);
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 140ms ease;
+        }
+        .checkbox.checked {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* Person color dots */
+        .person-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* Tooltip */
+        .tooltip-wrap { position: relative; display: inline-flex; }
+        .tooltip {
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface-4);
+            color: var(--text-primary);
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 120ms ease;
+            border: 1px solid var(--border-base);
+        }
+        .tooltip-wrap:hover .tooltip { opacity: 1; }
+
+        /* Number input control */
+        .num-control {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            border: 1px solid var(--border-base);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            height: 36px;
+        }
+        .num-btn {
+            width: 32px;
+            height: 100%;
+            background: var(--surface-2);
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 120ms ease;
+            font-family: var(--font-sans);
+        }
+        .num-btn:hover { background: var(--surface-3); color: var(--text-primary); }
+        .num-val {
+            min-width: 32px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--surface-2);
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container { padding: 0 16px; }
+            .t-display { font-size: 36px; }
+            .t-headline { font-size: 26px; }
+            .grid-2 { grid-template-columns: 1fr; }
+            .grid-3 { grid-template-columns: 1fr 1fr; }
+            .hide-mobile { display: none; }
+        }
+
+        /* API key gate overlay */
+        .api-gate {
+            position: fixed;
+            inset: 0;
+            background: rgba(14,14,13,0.95);
+            backdrop-filter: blur(20px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        /* Receipt preview */
+        .receipt-img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-base);
+        }
+
+        /* Item row */
+        .item-row {
+            display: grid;
+            grid-template-columns: 1fr 80px auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-divider);
+        }
+        .item-row:last-child { border-bottom: none; }
+
+        /* Person assignment chips */
+        .person-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 120ms ease;
+            border: 1px solid transparent;
+        }
+        .person-chip.assigned {
+            border-color: currentColor;
+        }
+
+        /* Summary card */
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-divider);
+        }
+        .summary-row:last-child { border-bottom: none; }
+
+        /* Mode indicator */
+        .mode-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: var(--surface-2);
+            border: 1px solid var(--border-base);
+            color: var(--text-secondary);
+        }
+
+        /* Transition wrapper */
+        #app-content {
+            transition: opacity 200ms ease, transform 200ms ease;
+        }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+// ─── CONSTANTS ─────────────────────────────────────────────────────────────
+
+const PERSON_COLORS = [
+    '#6366F1', '#06B6D4', '#22C55E', '#F59E0B',
+    '#EC4899', '#8B5CF6', '#EF4444', '#14B8A6'
+];
+
+const formatCurrency = (val) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(isNaN(val) ? 0 : val);
+
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+const genId = () => Math.random().toString(36).slice(2, 9);
+
+// ─── SVG ICONS ─────────────────────────────────────────────────────────────
+
+const Icon = ({ name, size = 18, color = 'currentColor', className = '' }) => {
+    const paths = {
+        camera: <><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></>,
+        upload: <><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></>,
+        scan: <><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></>,
+        plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+        minus: <line x1="5" y1="12" x2="19" y2="12"/>,
+        x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+        check: <polyline points="20 6 9 17 4 12"/>,
+        arrowLeft: <><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></>,
+        arrowRight: <><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>,
+        users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>,
+        receipt: <><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></>,
+        edit: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+        trash: <><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
+        key: <><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></>,
+        sparkle: <><path d="M12 3L13.5 7.5L18 9L13.5 10.5L12 15L10.5 10.5L6 9L10.5 7.5Z"/><path d="M5 3L5.75 5.25L8 6L5.75 6.75L5 9L4.25 6.75L2 6L4.25 5.25Z"/><path d="M19 15L19.5 16.5L21 17L19.5 17.5L19 19L18.5 17.5L17 17L18.5 16.5Z"/></>,
+        dollar: <><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>,
+        percent: <><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></>,
+        sliders: <><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></>,
+        refresh: <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
+        info: <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>,
+        home: <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
+        copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>,
+        share: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></>,
+    };
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
+            fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+            className={className}>
+            {paths[name] || paths.receipt}
+        </svg>
+    );
+};
+
+// ─── COMPONENTS ────────────────────────────────────────────────────────────
+
+const Spinner = ({ size = 18 }) => (
+    <svg className="spin" width={size} height={size} viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+            strokeOpacity="0.3"/>
+        <path d="M12 2v4" strokeOpacity="1"/>
+    </svg>
+);
+
+const Button = ({ children, variant = 'primary', size = '', onClick, disabled, className = '', icon, iconRight, style }) => (
+    <button
+        className={`btn btn-${variant} ${size ? 'btn-' + size : ''} ${className}`}
+        onClick={onClick}
+        disabled={disabled}
+        style={style}
+    >
+        {icon && <Icon name={icon} size={size === 'sm' ? 14 : size === 'xs' ? 12 : 16} />}
+        {children}
+        {iconRight && <Icon name={iconRight} size={16} />}
+    </button>
+);
+
+const Input = ({ label, type = 'text', placeholder, value, onChange, prefix, suffix, autoFocus, onKeyDown, style }) => (
+    <div className="input-wrap">
+        {label && <label className="input-label">{label}</label>}
+        <div style={{ position: 'relative' }}>
+            {prefix && <span className="input-prefix">{prefix}</span>}
+            <input
+                type={type}
+                className={`input-field ${prefix ? 'has-prefix' : ''}`}
+                placeholder={placeholder}
+                value={value}
+                onChange={onChange}
+                autoFocus={autoFocus}
+                onKeyDown={onKeyDown}
+                style={style}
+            />
+            {suffix && (
+                <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', fontSize: 13 }}>
+                    {suffix}
+                </span>
+            )}
+        </div>
+    </div>
+);
+
+const Checkbox = ({ checked, onChange, label }) => (
+    <div className="checkbox-wrap" onClick={onChange}>
+        <div className={`checkbox ${checked ? 'checked' : ''}`}>
+            {checked && <Icon name="check" size={11} color="#fff" />}
+        </div>
+        {label && <span style={{ fontSize: 14 }}>{label}</span>}
+    </div>
+);
+
+// ─── API KEY GATE ──────────────────────────────────────────────────────────
+
+const ApiKeyGate = ({ onSave }) => {
+    const [key, setKey] = React.useState('');
+    return (
+        <div className="api-gate">
+            <div className="card p-lg fade-up" style={{ maxWidth: 480, width: '100%' }}>
+                <div className="flex items-center gap-sm mb-lg">
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon name="key" size={22} color="var(--primary)" />
+                    </div>
+                    <div>
+                        <h2 className="t-title">Connect Tiago to Claude</h2>
+                        <p className="t-caption text-secondary mt-1">For receipt scanning via OCR</p>
+                    </div>
+                </div>
+                <p className="t-body text-secondary mb-md">
+                    Tiago uses Claude's vision to read receipts and extract line items automatically.
+                    Your key is stored only in this browser session — never sent to any server.
+                </p>
+                <Input
+                    label="Anthropic API Key"
+                    placeholder="sk-ant-..."
+                    value={key}
+                    onChange={e => setKey(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && key.startsWith('sk-') && onSave(key)}
+                />
+                <div className="mt-md flex gap-sm">
+                    <Button
+                        className="flex-1"
+                        onClick={() => onSave(key)}
+                        disabled={!key.startsWith('sk-')}
+                        icon="sparkle"
+                    >
+                        Activate OCR
+                    </Button>
+                    <Button variant="ghost" onClick={() => onSave(null)}>
+                        Skip for now
+                    </Button>
+                </div>
+                <p className="t-caption text-tertiary mt-md text-center">
+                    Don't have a key? <a href="https://console.anthropic.com" target="_blank" style={{ color: 'var(--primary)' }}>console.anthropic.com</a>
+                </p>
+            </div>
+        </div>
+    );
+};
+
+// ─── RECEIPT SCANNER ───────────────────────────────────────────────────────
+
+const ReceiptScanner = ({ apiKey, onComplete, onManual }) => {
+    const [dragOver, setDragOver] = React.useState(false);
+    const [preview, setPreview] = React.useState(null);
+    const [imageData, setImageData] = React.useState(null);
+    const [scanning, setScanning] = React.useState(false);
+    const [error, setError] = React.useState(null);
+    const fileRef = React.useRef();
+
+    const handleFile = (file) => {
+        if (!file || !file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setPreview(e.target.result);
+            setImageData(e.target.result.split(',')[1]);
+            setError(null);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        handleFile(e.dataTransfer.files[0]);
+    };
+
+    const scanReceipt = async () => {
+        if (!imageData || !apiKey) return;
+        setScanning(true);
+        setError(null);
+        try {
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+                body: JSON.stringify({
+                    model: 'claude-opus-4-6',
+                    max_tokens: 1500,
+                    messages: [{
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                source: { type: 'base64', media_type: 'image/jpeg', data: imageData }
+                            },
+                            {
+                                type: 'text',
+                                text: `Extract this restaurant receipt into JSON. Return ONLY valid JSON, nothing else.
+Format:
+{
+  "restaurant": "Restaurant Name",
+  "date": "date string or null",
+  "items": [
+    { "name": "Item Name", "price": 12.50 }
+  ],
+  "subtotal": 45.00,
+  "tax": 3.60,
+  "tip": 8.00,
+  "total": 56.60
+}
+Rules:
+- Each item must have a name and a numeric price
+- If subtotal/tax/tip aren't shown, calculate or set to 0
+- All prices must be numbers, not strings
+- Include every line item on the receipt`
+                            }
+                        ]
+                    }]
+                })
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error?.message || 'API error');
+            }
+            const data = await res.json();
+            const text = data.content[0].text;
+            const clean = text.replace(/```json|```/g, '').trim();
+            const parsed = JSON.parse(clean);
+            onComplete({ ...parsed, imagePreview: preview });
+        } catch (err) {
+            setError(err.message.includes('parse') ? 'Could not read receipt. Try manual entry.' : err.message);
+        } finally {
+            setScanning(false);
+        }
+    };
+
+    return (
+        <div className="fade-up">
+            {!preview ? (
+                <div
+                    className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileRef.current?.click()}
+                >
+                    <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        onChange={e => handleFile(e.target.files[0])}
+                    />
+                    <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon name="camera" size={26} color="var(--primary)" />
+                    </div>
+                    <div>
+                        <p className="t-body" style={{ fontWeight: 500 }}>Drop receipt photo here</p>
+                        <p className="t-caption text-secondary mt-1">or tap to take a photo / browse files</p>
+                    </div>
+                    <div className="flex gap-sm wrap justify-center">
+                        <span className="badge badge-neutral">JPG</span>
+                        <span className="badge badge-neutral">PNG</span>
+                        <span className="badge badge-neutral">HEIC</span>
+                        <span className="badge badge-neutral">WEBP</span>
+                    </div>
+                </div>
+            ) : (
+                <div>
+                    <img src={preview} alt="Receipt" className="receipt-img mb-md" />
+                    {error && (
+                        <div className="card p-sm mb-md" style={{ borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)' }}>
+                            <p className="t-caption text-error">{error}</p>
+                        </div>
+                    )}
+                    <div className="flex gap-sm">
+                        <Button
+                            className="flex-1"
+                            onClick={scanReceipt}
+                            disabled={scanning || !apiKey}
+                            icon={scanning ? null : 'sparkle'}
+                        >
+                            {scanning ? <><Spinner size={16} />&nbsp;&nbsp;Reading receipt…</> : 'Scan with Claude AI'}
+                        </Button>
+                        <Button variant="secondary" onClick={() => { setPreview(null); setImageData(null); setError(null); }}>
+                            Retake
+                        </Button>
+                    </div>
+                    {!apiKey && (
+                        <p className="t-caption text-tertiary text-center mt-sm">
+                            No API key — <button style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }} onClick={onManual}>enter items manually</button>
+                        </p>
+                    )}
+                </div>
+            )}
+            <div className="flex items-center gap-sm mt-md">
+                <div className="divider" />
+                <span className="t-caption text-tertiary" style={{ white‌space: 'nowrap', flexShrink: 0 }}>or</span>
+                <div className="divider" />
+            </div>
+            <Button variant="ghost" className="w-full mt-sm" icon="edit" onClick={onManual}>
+                Enter items manually
+            </Button>
+        </div>
+    );
+};
+
+// ─── MANUAL ENTRY ──────────────────────────────────────────────────────────
+
+const ManualEntry = ({ initial, onComplete }) => {
+    const [restaurant, setRestaurant] = React.useState(initial?.restaurant || '');
+    const [items, setItems] = React.useState(
+        initial?.items?.length ? initial.items.map(i => ({ ...i, id: genId() }))
+            : [{ id: genId(), name: '', price: '' }]
+    );
+    const [tax, setTax] = React.useState(initial?.tax || '');
+    const [tip, setTip] = React.useState(initial?.tip || '');
+
+    const addItem = () => setItems(prev => [...prev, { id: genId(), name: '', price: '' }]);
+    const removeItem = (id) => setItems(prev => prev.filter(i => i.id !== id));
+    const updateItem = (id, field, val) => setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i));
+
+    const subtotal = items.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
+    const total = subtotal + (parseFloat(tax) || 0) + (parseFloat(tip) || 0);
+
+    const canSubmit = items.some(i => i.name && i.price);
+
+    const handleSubmit = () => {
+        const validItems = items.filter(i => i.name && parseFloat(i.price) > 0)
+            .map(i => ({ name: i.name, price: parseFloat(i.price) }));
+        onComplete({
+            restaurant: restaurant || 'Dinner',
+            items: validItems,
+            subtotal,
+            tax: parseFloat(tax) || 0,
+            tip: parseFloat(tip) || 0,
+            total
+        });
+    };
+
+    return (
+        <div className="fade-up">
+            <Input
+                label="Restaurant name"
+                placeholder="e.g. The French Laundry"
+                value={restaurant}
+                onChange={e => setRestaurant(e.target.value)}
+            />
+
+            <div className="mt-md mb-xs flex justify-between items-center">
+                <span className="input-label">Line items</span>
+                <Button variant="ghost" size="xs" icon="plus" onClick={addItem}>Add item</Button>
+            </div>
+
+            <div className="card p-sm" style={{ marginBottom: 16 }}>
+                {items.map((item, idx) => (
+                    <div key={item.id} className="flex gap-sm items-center" style={{ marginBottom: idx < items.length - 1 ? 10 : 0 }}>
+                        <input
+                            className="input-field flex-1"
+                            style={{ height: 44 }}
+                            placeholder={`Item ${idx + 1}`}
+                            value={item.name}
+                            onChange={e => updateItem(item.id, 'name', e.target.value)}
+                        />
+                        <div style={{ position: 'relative', width: 96 }}>
+                            <span className="input-prefix" style={{ left: 10 }}>$</span>
+                            <input
+                                className="input-field has-prefix"
+                                style={{ height: 44, paddingLeft: 24 }}
+                                type="number"
+                                placeholder="0.00"
+                                value={item.price}
+                                onChange={e => updateItem(item.id, 'price', e.target.value)}
+                            />
+                        </div>
+                        {items.length > 1 && (
+                            <button
+                                className="btn btn-ghost btn-icon"
+                                style={{ height: 44, width: 36, color: 'var(--text-tertiary)' }}
+                                onClick={() => removeItem(item.id)}
+                            >
+                                <Icon name="x" size={14} />
+                            </button>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid-2" style={{ marginBottom: 24 }}>
+                <Input label="Tax" type="number" placeholder="0.00" prefix="$" value={tax} onChange={e => setTax(e.target.value)} />
+                <Input label="Tip" type="number" placeholder="0.00" prefix="$" value={tip} onChange={e => setTip(e.target.value)} />
+            </div>
+
+            <div className="card p-sm mb-md" style={{ background: 'var(--surface-2)' }}>
+                <div className="flex justify-between t-caption text-secondary mb-xs">
+                    <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
+                </div>
+                <div className="flex justify-between t-body" style={{ fontWeight: 600 }}>
+                    <span>Total</span><span>{formatCurrency(total)}</span>
+                </div>
+            </div>
+
+            <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit} icon="arrowRight" iconRight="arrowRight">
+                Set up the split
+            </Button>
+        </div>
+    );
+};
+
+// ─── PEOPLE SETUP ──────────────────────────────────────────────────────────
+
+const PeopleSetup = ({ onComplete }) => {
+    const [people, setPeople] = React.useState([
+        { id: genId(), name: 'You', color: PERSON_COLORS[0] }
+    ]);
+    const [newName, setNewName] = React.useState('');
+
+    const addPerson = () => {
+        if (!newName.trim()) return;
+        setPeople(prev => [...prev, {
+            id: genId(),
+            name: newName.trim(),
+            color: PERSON_COLORS[prev.length % PERSON_COLORS.length]
+        }]);
+        setNewName('');
+    };
+
+    const removePerson = (id) => {
+        if (people.length <= 1) return;
+        setPeople(prev => prev.filter(p => p.id !== id));
+    };
+
+    return (
+        <div className="fade-up">
+            <p className="t-body text-secondary mb-md">
+                Add everyone at the table. You'll assign items to them in the next step.
+            </p>
+
+            <div className="flex flex-col gap-sm mb-md">
+                {people.map((person, i) => (
+                    <div key={person.id} className="card p-sm flex items-center justify-between fade-up" style={{ animationDelay: `${i * 40}ms` }}>
+                        <div className="flex items-center gap-sm">
+                            <div className="avatar" style={{ background: person.color + '20', color: person.color, borderColor: person.color + '40' }}>
+                                {person.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <span style={{ fontWeight: 500 }}>{person.name}</span>
+                            {person.name === 'You' && <span className="badge badge-info">You</span>}
+                        </div>
+                        {person.name !== 'You' && (
+                            <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)' }} onClick={() => removePerson(person.id)}>
+                                <Icon name="x" size={14} />
+                            </button>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            <div className="flex gap-sm mb-lg">
+                <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                        className="input-field"
+                        placeholder="Add person (e.g. Jordan)"
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addPerson()}
+                        style={{ height: 52 }}
+                    />
+                </div>
+                <Button variant="secondary" onClick={addPerson} disabled={!newName.trim()} icon="plus">
+                    Add
+                </Button>
+            </div>
+
+            <Button
+                className="w-full"
+                onClick={() => onComplete(people)}
+                disabled={people.length < 1}
+                icon="arrowRight"
+                iconRight="arrowRight"
+            >
+                Split the bill →
+            </Button>
+        </div>
+    );
+};
+
+// ─── SPLIT EDITOR ──────────────────────────────────────────────────────────
+
+const SplitEditor = ({ receipt, people, onComplete }) => {
+    const [splitMode, setSplitMode] = React.useState('item'); // item | custom | percent
+    // item assignments: { itemIdx: [personId] }
+    const [assignments, setAssignments] = React.useState({});
+    // custom: { personId: amount }
+    const [customAmounts, setCustomAmounts] = React.useState(() =>
+        Object.fromEntries(people.map(p => [p.id, '']))
+    );
+    // percent: { personId: percent }
+    const [percents, setPercents] = React.useState(() => {
+        const even = (100 / people.length).toFixed(1);
+        return Object.fromEntries(people.map(p => [p.id, even]));
+    });
+
+    const [tipMode, setTipMode] = React.useState('even'); // even | proportional
+    const [tip, setTip] = React.useState(receipt.tip || 0);
+    const [tax, setTax] = React.useState(receipt.tax || 0);
+
+    const subtotal = receipt.items.reduce((s, i) => s + i.price, 0);
+    const total = subtotal + (parseFloat(tax) || 0) + (parseFloat(tip) || 0);
+
+    // Toggle person on item
+    const toggleAssign = (itemIdx, personId) => {
+        setAssignments(prev => {
+            const current = prev[itemIdx] || [];
+            const next = current.includes(personId)
+                ? current.filter(id => id !== personId)
+                : [...current, personId];
+            return { ...prev, [itemIdx]: next };
+        });
+    };
+
+    // Assign item to all
+    const assignAll = (itemIdx) => {
+        setAssignments(prev => ({ ...prev, [itemIdx]: people.map(p => p.id) }));
+    };
+
+    // Compute per-person totals (item mode)
+    const computeItemSplit = () => {
+        const shares = Object.fromEntries(people.map(p => [p.id, 0]));
+        receipt.items.forEach((item, idx) => {
+            const assigned = assignments[idx] || [];
+            if (assigned.length === 0) return;
+            const share = item.price / assigned.length;
+            assigned.forEach(id => { shares[id] = (shares[id] || 0) + share; });
+        });
+        // Add tax & tip
+        const taxTotal = parseFloat(tax) || 0;
+        const tipTotal = parseFloat(tip) || 0;
+        const extras = taxTotal + tipTotal;
+        const itemSubtotals = Object.fromEntries(people.map(p => [p.id, shares[p.id] || 0]));
+        const assignedSubtotal = Object.values(itemSubtotals).reduce((a, b) => a + b, 0);
+        people.forEach(p => {
+            const proportion = assignedSubtotal > 0 ? (itemSubtotals[p.id] / assignedSubtotal) : (1 / people.length);
+            shares[p.id] = (itemSubtotals[p.id] || 0) + (extras * proportion);
+        });
+        return shares;
+    };
+
+    const computeCustomSplit = () => {
+        return Object.fromEntries(people.map(p => [p.id, parseFloat(customAmounts[p.id]) || 0]));
+    };
+
+    const computePercentSplit = () => {
+        return Object.fromEntries(people.map(p => [p.id, total * ((parseFloat(percents[p.id]) || 0) / 100)]));
+    };
+
+    const getShares = () => {
+        if (splitMode === 'item') return computeItemSplit();
+        if (splitMode === 'custom') return computeCustomSplit();
+        return computePercentSplit();
+    };
+
+    const shares = getShares();
+    const totalAssigned = Object.values(shares).reduce((a, b) => a + b, 0);
+    const unassignedItems = receipt.items.filter((_, idx) => !(assignments[idx]?.length > 0)).length;
+
+    const personById = Object.fromEntries(people.map(p => [p.id, p]));
+
+    const percentTotal = people.reduce((sum, p) => sum + (parseFloat(percents[p.id]) || 0), 0);
+
+    const handleComplete = () => {
+        onComplete({
+            people,
+            shares: getShares(),
+            receipt: { ...receipt, tax: parseFloat(tax) || 0, tip: parseFloat(tip) || 0, total },
+            splitMode
+        });
+    };
+
+    const canComplete = splitMode === 'item'
+        ? unassignedItems === 0
+        : splitMode === 'custom'
+        ? Math.abs(totalAssigned - total) < 0.02
+        : Math.abs(percentTotal - 100) < 0.1;
+
+    return (
+        <div className="fade-up">
+            {/* Receipt summary */}
+            <div className="card p-sm mb-md" style={{ background: 'var(--surface-2)' }}>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <p className="t-label text-secondary">{receipt.restaurant}</p>
+                        <p className="t-title mt-1">{formatCurrency(total)}</p>
+                    </div>
+                    <div className="flex gap-sm">
+                        <div className="text-right">
+                            <p className="t-caption text-tertiary">Tax</p>
+                            <p className="t-body" style={{ fontWeight: 500 }}>
+                                <span style={{ cursor: 'pointer', borderBottom: '1px dashed var(--border-hover)' }}>
+                                    {formatCurrency(parseFloat(tax) || 0)}
+                                </span>
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="t-caption text-tertiary">Tip</p>
+                            <p className="t-body" style={{ fontWeight: 500, cursor: 'pointer', borderBottom: '1px dashed var(--border-hover)' }}>
+                                {formatCurrency(parseFloat(tip) || 0)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tax / tip adjusters */}
+            <div className="grid-2 mb-md">
+                <Input label="Tax" type="number" placeholder="0.00" prefix="$"
+                    value={tax} onChange={e => setTax(e.target.value)} />
+                <Input label="Tip" type="number" placeholder="0.00" prefix="$"
+                    value={tip} onChange={e => setTip(e.target.value)} />
+            </div>
+
+            {/* Split mode tabs */}
+            <div className="mb-md">
+                <p className="input-label mb-xs">Split method</p>
+                <div className="tab-bar">
+                    <button className={`tab ${splitMode === 'item' ? 'active' : ''}`} onClick={() => setSplitMode('item')}>
+                        <Icon name="receipt" size={13} />&nbsp; By item
+                    </button>
+                    <button className={`tab ${splitMode === 'custom' ? 'active' : ''}`} onClick={() => setSplitMode('custom')}>
+                        <Icon name="dollar" size={13} />&nbsp; Custom $
+                    </button>
+                    <button className={`tab ${splitMode === 'percent' ? 'active' : ''}`} onClick={() => setSplitMode('percent')}>
+                        <Icon name="percent" size={13} />&nbsp; By %
+                    </button>
+                </div>
+            </div>
+
+            {/* ── ITEM MODE ── */}
+            {splitMode === 'item' && (
+                <div className="card mb-md">
+                    {unassignedItems > 0 && (
+                        <div className="p-sm" style={{ background: 'rgba(245,158,11,0.07)', borderBottom: '1px solid var(--border-divider)' }}>
+                            <p className="t-caption" style={{ color: 'var(--warning)' }}>
+                                {unassignedItems} item{unassignedItems > 1 ? 's' : ''} not yet assigned
+                            </p>
+                        </div>
+                    )}
+                    <div className="p-sm">
+                        {receipt.items.map((item, idx) => {
+                            const assigned = assignments[idx] || [];
+                            return (
+                                <div key={idx} className="item-row">
+                                    <div>
+                                        <p style={{ fontWeight: 500, fontSize: 14 }}>{item.name}</p>
+                                        <div className="flex gap-xs wrap mt-1">
+                                            {people.map(p => {
+                                                const isOn = assigned.includes(p.id);
+                                                return (
+                                                    <button
+                                                        key={p.id}
+                                                        className={`person-chip ${isOn ? 'assigned' : ''}`}
+                                                        style={{
+                                                            color: isOn ? p.color : 'var(--text-tertiary)',
+                                                            background: isOn ? p.color + '18' : 'transparent',
+                                                            borderColor: isOn ? p.color + '60' : 'var(--border-base)'
+                                                        }}
+                                                        onClick={() => toggleAssign(idx, p.id)}
+                                                    >
+                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOn ? p.color : 'var(--text-disabled)', flexShrink: 0, display: 'inline-block' }} />
+                                                        {p.name}
+                                                    </button>
+                                                );
+                                            })}
+                                            <button
+                                                className="person-chip"
+                                                style={{ color: 'var(--text-tertiary)', borderColor: 'var(--border-base)' }}
+                                                onClick={() => assignAll(idx)}
+                                            >
+                                                All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p style={{ fontWeight: 600, fontSize: 14 }}>{formatCurrency(item.price)}</p>
+                                        {assigned.length > 1 && (
+                                            <p className="t-caption text-tertiary">{formatCurrency(item.price / assigned.length)} each</p>
+                                        )}
+                                    </div>
+                                    <div style={{ width: 4 }}></div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* ── CUSTOM MODE ── */}
+            {splitMode === 'custom' && (
+                <div className="card p-sm mb-md">
+                    <p className="t-caption text-secondary mb-sm">
+                        Enter the exact amount each person owes. Must add up to {formatCurrency(total)}.
+                    </p>
+                    {people.map(p => (
+                        <div key={p.id} className="flex items-center gap-sm mb-sm">
+                            <div className="avatar" style={{ background: p.color + '20', color: p.color, borderColor: p.color + '40', flexShrink: 0 }}>
+                                {p.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{p.name}</p>
+                            </div>
+                            <div style={{ position: 'relative', width: 120 }}>
+                                <span className="input-prefix" style={{ left: 10 }}>$</span>
+                                <input
+                                    className="input-field has-prefix"
+                                    type="number"
+                                    style={{ height: 44, paddingLeft: 24 }}
+                                    placeholder="0.00"
+                                    value={customAmounts[p.id]}
+                                    onChange={e => setCustomAmounts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                    <div className={`flex justify-between p-sm rounded mt-xs`} style={{
+                        background: Math.abs(totalAssigned - total) < 0.02 ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
+                        borderRadius: 8
+                    }}>
+                        <span className="t-caption text-secondary">Total entered</span>
+                        <span className={`t-caption ${Math.abs(totalAssigned - total) < 0.02 ? 'text-success' : ''}`} style={{ fontWeight: 600 }}>
+                            {formatCurrency(totalAssigned)} / {formatCurrency(total)}
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* ── PERCENT MODE ── */}
+            {splitMode === 'percent' && (
+                <div className="card p-sm mb-md">
+                    <p className="t-caption text-secondary mb-sm">
+                        Set the percentage each person covers. Must total 100%.
+                    </p>
+                    {people.map(p => (
+                        <div key={p.id} className="flex items-center gap-sm mb-sm">
+                            <div className="avatar" style={{ background: p.color + '20', color: p.color, borderColor: p.color + '40', flexShrink: 0 }}>
+                                {p.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <p style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</p>
+                                <p className="t-caption text-tertiary">{formatCurrency(total * ((parseFloat(percents[p.id]) || 0) / 100))}</p>
+                            </div>
+                            <div style={{ position: 'relative', width: 110 }}>
+                                <input
+                                    className="input-field"
+                                    type="number"
+                                    style={{ height: 44, paddingRight: 28, textAlign: 'right' }}
+                                    placeholder="0"
+                                    value={percents[p.id]}
+                                    onChange={e => setPercents(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                />
+                                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', fontSize: 13 }}>%</span>
+                            </div>
+                        </div>
+                    ))}
+                    <div className={`flex justify-between p-sm`} style={{
+                        background: Math.abs(percentTotal - 100) < 0.1 ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
+                        borderRadius: 8
+                    }}>
+                        <span className="t-caption text-secondary">Total %</span>
+                        <span className={`t-caption ${Math.abs(percentTotal - 100) < 0.1 ? 'text-success' : ''}`} style={{ fontWeight: 600 }}>
+                            {percentTotal.toFixed(1)}%
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* Live preview */}
+            <div className="card p-sm mb-md" style={{ background: 'rgba(99,102,241,0.05)', borderColor: 'rgba(99,102,241,0.2)' }}>
+                <p className="input-label mb-sm">Live preview</p>
+                {people.map(p => (
+                    <div key={p.id} className="summary-row">
+                        <div className="flex items-center gap-sm">
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
+                            <span style={{ fontSize: 14 }}>{p.name}</span>
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: 15, color: p.color }}>
+                            {formatCurrency(shares[p.id] || 0)}
+                        </span>
+                    </div>
+                ))}
+            </div>
+
+            <Button
+                className="w-full"
+                onClick={handleComplete}
+                disabled={!canComplete}
+                icon="check"
+            >
+                Calculate final split
+            </Button>
+            {!canComplete && splitMode === 'item' && unassignedItems > 0 && (
+                <p className="t-caption text-tertiary text-center mt-sm">Assign all items to continue</p>
+            )}
+        </div>
+    );
+};
+
+// ─── SUMMARY ───────────────────────────────────────────────────────────────
+
+const Summary = ({ result, onNew }) => {
+    const { people, shares, receipt, splitMode } = result;
+    const [copied, setCopied] = React.useState(false);
+
+    const personById = Object.fromEntries(people.map(p => [p.id, p]));
+    const sorted = [...people].sort((a, b) => (shares[b.id] || 0) - (shares[a.id] || 0));
+
+    const summaryText = `${receipt.restaurant} — ${new Date().toLocaleDateString()}\nTotal: ${formatCurrency(receipt.total)}\n\n` +
+        sorted.map(p => `${p.name}: ${formatCurrency(shares[p.id] || 0)}`).join('\n');
+
+    const copyToClipboard = async () => {
+        try {
+            await navigator.clipboard.writeText(summaryText);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {}
+    };
+
+    const maxShare = Math.max(...Object.values(shares));
+
+    return (
+        <div className="fade-up">
+            {/* Hero */}
+            <div className="card p-lg mb-md text-center" style={{
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(6,182,212,0.08) 100%)',
+                borderColor: 'rgba(99,102,241,0.2)'
+            }}>
+                <p className="t-label text-secondary mb-sm">{receipt.restaurant}</p>
+                <p className="t-display" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>
+                    {formatCurrency(receipt.total)}
+                </p>
+                <p className="t-caption text-tertiary mt-sm">
+                    Split {splitMode === 'item' ? 'by item' : splitMode === 'custom' ? 'custom amounts' : 'by percentage'} among {people.length} people
+                </p>
+            </div>
+
+            {/* Breakdown */}
+            <div className="card mb-md">
+                <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                    <p className="input-label">What everyone owes</p>
+                </div>
+                {sorted.map((p, i) => {
+                    const amount = shares[p.id] || 0;
+                    const barWidth = maxShare > 0 ? (amount / maxShare) * 100 : 0;
+                    return (
+                        <div key={p.id} className="p-sm fade-up" style={{ animationDelay: `${i * 60}ms`, borderBottom: i < sorted.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                            <div className="flex items-center justify-between mb-xs">
+                                <div className="flex items-center gap-sm">
+                                    <div className="avatar" style={{ background: p.color + '20', color: p.color, borderColor: p.color + '40' }}>
+                                        {p.name.substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <span style={{ fontWeight: 500 }}>{p.name}</span>
+                                    {p.name === 'You' && <span className="badge badge-info">You</span>}
+                                </div>
+                                <span style={{ fontWeight: 700, fontSize: 18, color: p.color }}>{formatCurrency(amount)}</span>
+                            </div>
+                            {/* Bar */}
+                            <div style={{ height: 3, background: 'var(--surface-3)', borderRadius: 2, overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%',
+                                    width: barWidth + '%',
+                                    background: `linear-gradient(90deg, ${p.color}, ${p.color}99)`,
+                                    borderRadius: 2,
+                                    transition: 'width 600ms cubic-bezier(0,0,0.2,1)',
+                                    transitionDelay: `${i * 80}ms`
+                                }} />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Receipt detail */}
+            <div className="card p-sm mb-md" style={{ background: 'var(--surface-2)' }}>
+                <p className="input-label mb-sm">Receipt</p>
+                {receipt.items.map((item, i) => (
+                    <div key={i} className="flex justify-between t-caption text-secondary py-1">
+                        <span>{item.name}</span>
+                        <span>{formatCurrency(item.price)}</span>
+                    </div>
+                ))}
+                <div className="divider mt-sm mb-sm" />
+                <div className="flex justify-between t-caption text-secondary mb-xs">
+                    <span>Subtotal</span><span>{formatCurrency(receipt.subtotal || receipt.items.reduce((s,i) => s + i.price, 0))}</span>
+                </div>
+                {receipt.tax > 0 && (
+                    <div className="flex justify-between t-caption text-secondary mb-xs">
+                        <span>Tax</span><span>{formatCurrency(receipt.tax)}</span>
+                    </div>
+                )}
+                {receipt.tip > 0 && (
+                    <div className="flex justify-between t-caption text-secondary mb-xs">
+                        <span>Tip</span><span>{formatCurrency(receipt.tip)}</span>
+                    </div>
+                )}
+                <div className="flex justify-between t-body mt-xs" style={{ fontWeight: 700 }}>
+                    <span>Total</span><span>{formatCurrency(receipt.total)}</span>
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-sm mb-sm">
+                <Button className="flex-1" variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copyToClipboard}>
+                    {copied ? 'Copied!' : 'Copy summary'}
+                </Button>
+                <Button className="flex-1" variant="secondary" icon="share" onClick={() => {
+                    if (navigator.share) navigator.share({ title: 'Tiago split', text: summaryText });
+                }}>
+                    Share
+                </Button>
+            </div>
+
+            <Button className="w-full" icon="plus" onClick={onNew}>
+                Split another bill
+            </Button>
+        </div>
+    );
+};
+
+// ─── MAIN APP ──────────────────────────────────────────────────────────────
+
+const STEPS = ['scan', 'items', 'people', 'split', 'summary'];
+
+const App = () => {
+    const [apiKey, setApiKey] = React.useState(null);
+    const [showApiGate, setShowApiGate] = React.useState(true);
+    const [step, setStep] = React.useState('scan'); // scan → items → people → split → summary
+    const [receipt, setReceipt] = React.useState(null);
+    const [people, setPeople] = React.useState(null);
+    const [result, setResult] = React.useState(null);
+    const [transitioning, setTransitioning] = React.useState(false);
+
+    const navigate = (target) => {
+        setTransitioning(true);
+        setTimeout(() => {
+            setStep(target);
+            setTransitioning(false);
+        }, 180);
+    };
+
+    const handleApiKey = (key) => {
+        setApiKey(key);
+        setShowApiGate(false);
+    };
+
+    const handleReceiptScanned = (data) => {
+        setReceipt(data);
+        navigate('people');
+    };
+
+    const handleManual = () => {
+        navigate('items');
+    };
+
+    const handleManualComplete = (data) => {
+        setReceipt(data);
+        navigate('people');
+    };
+
+    const handlePeopleComplete = (p) => {
+        setPeople(p);
+        navigate('split');
+    };
+
+    const handleSplitComplete = (res) => {
+        setResult(res);
+        navigate('summary');
+    };
+
+    const handleNew = () => {
+        setReceipt(null);
+        setPeople(null);
+        setResult(null);
+        navigate('scan');
+    };
+
+    const stepIndex = STEPS.indexOf(step);
+    const stepLabel = {
+        scan: 'Capture receipt',
+        items: 'Edit items',
+        people: "Who's at the table?",
+        split: 'Split it up',
+        summary: 'Done'
+    }[step];
+
+    const stepDesc = {
+        scan: 'Photo or manual entry',
+        items: 'Review & adjust',
+        people: 'Add everyone',
+        split: 'Choose your method',
+        summary: receipt?.restaurant || ''
+    }[step];
+
+    return (
+        <>
+            {showApiGate && <ApiKeyGate onSave={handleApiKey} />}
+
+            <div className="container" style={{ paddingTop: 48, paddingBottom: 80 }}>
+                {/* Header */}
+                <header className="flex items-center justify-between mb-xl">
+                    <div>
+                        <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 300, letterSpacing: '-0.01em' }}>
+                            tiago
+                            <span style={{ fontStyle: 'italic', color: 'var(--text-tertiary)', marginLeft: 8, fontSize: 16, fontWeight: 300 }}>
+                                / split
+                            </span>
+                        </h1>
+                    </div>
+                    <button
+                        onClick={() => setShowApiGate(true)}
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: 'var(--text-tertiary)', gap: 6 }}
+                    >
+                        <Icon name="key" size={13} />
+                        <span className="hide-mobile">API key</span>
+                    </button>
+                </header>
+
+                {/* Step indicator */}
+                {step !== 'summary' && (
+                    <div className="mb-lg fade-in">
+                        {/* Progress dots */}
+                        <div className="flex items-center gap-sm mb-md">
+                            {STEPS.filter(s => s !== 'summary').map((s, i) => (
+                                <React.Fragment key={s}>
+                                    <div style={{
+                                        width: 8, height: 8, borderRadius: '50%',
+                                        background: i < stepIndex ? 'var(--primary)' : i === stepIndex ? 'var(--accent)' : 'var(--surface-3)',
+                                        transition: 'background 300ms ease',
+                                        flexShrink: 0
+                                    }} />
+                                    {i < STEPS.filter(s => s !== 'summary').length - 1 && (
+                                        <div style={{
+                                            flex: 1, height: 1,
+                                            background: i < stepIndex ? 'var(--primary)' : 'var(--border-divider)',
+                                            transition: 'background 300ms ease'
+                                        }} />
+                                    )}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                        <div className="flex items-end justify-between">
+                            <div>
+                                <h2 className="t-headline">{stepLabel}</h2>
+                                {stepDesc && <p className="t-body text-secondary mt-1">{stepDesc}</p>}
+                            </div>
+                            {step !== 'scan' && (
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => {
+                                        if (step === 'items') navigate('scan');
+                                        else if (step === 'people') navigate(receipt ? 'scan' : 'items');
+                                        else if (step === 'split') navigate('people');
+                                    }}
+                                    style={{ color: 'var(--text-tertiary)' }}
+                                >
+                                    <Icon name="arrowLeft" size={14} /> Back
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Content */}
+                <div id="app-content" style={{ opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)', transition: 'opacity 180ms ease, transform 180ms ease' }}>
+                    {step === 'scan' && (
+                        <ReceiptScanner
+                            apiKey={apiKey}
+                            onComplete={handleReceiptScanned}
+                            onManual={handleManual}
+                        />
+                    )}
+                    {step === 'items' && (
+                        <ManualEntry
+                            initial={receipt}
+                            onComplete={handleManualComplete}
+                        />
+                    )}
+                    {step === 'people' && (
+                        <PeopleSetup onComplete={handlePeopleComplete} />
+                    )}
+                    {step === 'split' && receipt && people && (
+                        <SplitEditor
+                            receipt={receipt}
+                            people={people}
+                            onComplete={handleSplitComplete}
+                        />
+                    )}
+                    {step === 'summary' && result && (
+                        <Summary result={result} onNew={handleNew} />
+                    )}
+                </div>
+            </div>
+        </>
+    );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+
+</script>
+</body>
+</html>
