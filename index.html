@@ -848,7 +848,6 @@ Rules:
                         ref={fileRef}
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         style={{ display: 'none' }}
                         onChange={e => handleFile(e.target.files[0])}
                     />
@@ -857,7 +856,7 @@ Rules:
                     </div>
                     <div>
                         <p className="t-body" style={{ fontWeight: 500 }}>Drop receipt photo here</p>
-                        <p className="t-caption text-secondary mt-1">or tap to take a photo / browse files</p>
+                        <p className="t-caption text-secondary mt-1">tap to take a photo or choose from your gallery</p>
                     </div>
                     <div className="flex gap-sm wrap justify-center">
                         <span className="badge badge-neutral">JPG</span>
