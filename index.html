@@ -1075,7 +1075,7 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                 icon="arrowRight"
                 iconRight="arrowRight"
             >
-                Split the bill →
+                Split the bill
             </Button>
         </div>
     );
@@ -1642,15 +1642,6 @@ const App = () => {
                                 {stepDesc && <p className="t-body text-secondary mt-1">{stepDesc}</p>}
                             </div>
                             <div className="flex gap-sm items-center">
-                                {step === 'scan' && receipt && (
-                                    <button
-                                        className="btn btn-ghost btn-sm"
-                                        onClick={() => navigate('people')}
-                                        style={{ color: 'var(--primary)', flexShrink: 0 }}
-                                    >
-                                        Continue <Icon name="arrowRight" size={14} />
-                                    </button>
-                                )}
                                 <button
                                     className="btn btn-ghost btn-sm"
                                     onClick={() => {
@@ -1663,6 +1654,15 @@ const App = () => {
                                 >
                                     <Icon name="arrowLeft" size={14} /> Back
                                 </button>
+                                {step === 'scan' && receipt && (
+                                    <button
+                                        className="btn btn-ghost btn-sm"
+                                        onClick={() => navigate('people')}
+                                        style={{ color: 'var(--primary)', flexShrink: 0 }}
+                                    >
+                                        Continue <Icon name="arrowRight" size={14} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1735,7 +1735,7 @@ const App = () => {
                         onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-base)'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
                         onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-divider)'; e.currentTarget.style.color = 'var(--text-disabled)'; }}
                     >
-                        Use free or send a tip →
+                        ☕ Buy me a coffee
                     </a>
                 </div>
             )}
