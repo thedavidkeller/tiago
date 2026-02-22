@@ -1697,6 +1697,32 @@ const App = () => {
                         <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} />
                     )}
                 </div>
+
+                {/* Footer */}
+                <footer style={{ marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--border-divider)', textAlign: 'center' }}>
+                    <a
+                        href="https://cash.app/$thedavidkeller/5"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            color: 'var(--text-tertiary)',
+                            fontSize: 13,
+                            textDecoration: 'none',
+                            padding: '10px 16px',
+                            borderRadius: 'var(--radius-full)',
+                            border: '1px solid var(--border-base)',
+                            transition: 'all 160ms ease',
+                            fontFamily: 'var(--font-sans)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-base)'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+                    >
+                        ☕ Dig the app? Buy me a coffee
+                    </a>
+                </footer>
             </div>
         </>
     );
