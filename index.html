@@ -711,7 +711,7 @@ const ApiKeyGate = ({ onSave }) => {
                     </div>
                     <div>
                         <h2 className="t-title">Connect Tiago to Claude</h2>
-                        <p className="t-caption text-secondary mt-1">For receipt scanning via OCR</p>
+                        <p className="t-caption text-secondary mt-1">For AI-powered receipt scanning</p>
                     </div>
                 </div>
                 <p className="t-body text-secondary mb-md">
@@ -735,7 +735,7 @@ const ApiKeyGate = ({ onSave }) => {
                         Activate OCR
                     </Button>
                     <Button variant="ghost" onClick={() => onSave(null)}>
-                        Skip for now
+                        Split receipts manually
                     </Button>
                 </div>
                 <p className="t-caption text-tertiary mt-md text-center">
@@ -1592,7 +1592,7 @@ const App = () => {
         <>
             {showApiGate && <ApiKeyGate onSave={handleApiKey} />}
 
-            <div className="container" style={{ paddingTop: 48, paddingBottom: 80 }}>
+            <div className="container" style={{ paddingTop: 48, paddingBottom: 120 }}>
                 {/* Header */}
                 <header className="flex items-center justify-between mb-xl">
                     <div>
