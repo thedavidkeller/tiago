@@ -735,7 +735,7 @@ const ApiKeyGate = ({ onSave }) => {
                         Activate OCR
                     </Button>
                     <Button variant="ghost" onClick={() => onSave(null)}>
-                        Split receipts manually
+                        Split manually
                     </Button>
                 </div>
                 <p className="t-caption text-tertiary mt-md text-center">
@@ -1698,13 +1698,25 @@ const App = () => {
                     )}
                 </div>
 
-                {/* Footer */}
-                <footer style={{ marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--border-divider)', textAlign: 'center' }}>
+                {/* Footer - fixed to bottom */}
+                <div style={{
+                    position: 'fixed',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    padding: '12px 0 28px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(to top, var(--bg-app) 60%, transparent)',
+                    pointerEvents: 'none',
+                    zIndex: 10
+                }}>
                     <a
                         href="https://cash.app/$thedavidkeller/5"
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
+                            pointerEvents: 'all',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 8,
@@ -1714,6 +1726,7 @@ const App = () => {
                             padding: '10px 16px',
                             borderRadius: 'var(--radius-full)',
                             border: '1px solid var(--border-base)',
+                            background: 'var(--surface-1)',
                             transition: 'all 160ms ease',
                             fontFamily: 'var(--font-sans)',
                         }}
@@ -1722,7 +1735,7 @@ const App = () => {
                     >
                         ☕ Dig the app? Buy me a coffee
                     </a>
-                </footer>
+                </div>
             </div>
         </>
     );
