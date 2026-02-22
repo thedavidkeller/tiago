@@ -1698,44 +1698,46 @@ const App = () => {
                     )}
                 </div>
 
-                {/* Footer - fixed to bottom */}
-                <div style={{
-                    position: 'fixed',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    padding: '12px 0 28px',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    background: 'linear-gradient(to top, var(--bg-app) 60%, transparent)',
-                    pointerEvents: 'none',
-                    zIndex: 10
-                }}>
-                    <a
-                        href="https://cash.app/$thedavidkeller/5"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                            pointerEvents: 'all',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            color: 'var(--text-tertiary)',
-                            fontSize: 13,
-                            textDecoration: 'none',
-                            padding: '10px 16px',
-                            borderRadius: 'var(--radius-full)',
-                            border: '1px solid var(--border-base)',
-                            background: 'var(--surface-1)',
-                            transition: 'all 160ms ease',
-                            fontFamily: 'var(--font-sans)',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-base)'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
-                    >
-                        ☕ Dig the app? Buy me a coffee
-                    </a>
                 </div>
+            </div>
+
+            {/* Donation button - fixed to bottom, always visible */}
+            <div style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                padding: '12px 0 28px',
+                display: 'flex',
+                justifyContent: 'center',
+                background: 'linear-gradient(to top, var(--bg-app) 60%, transparent)',
+                pointerEvents: 'none',
+                zIndex: 110
+            }}>
+                <a
+                    href="https://cash.app/$thedavidkeller/5"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                        pointerEvents: 'all',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: 'var(--text-tertiary)',
+                        fontSize: 13,
+                        textDecoration: 'none',
+                        padding: '10px 16px',
+                        borderRadius: 'var(--radius-full)',
+                        border: '1px solid var(--border-base)',
+                        background: 'var(--surface-1)',
+                        transition: 'all 160ms ease',
+                        fontFamily: 'var(--font-sans)',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-hover)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-base)'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+                >
+                    ☕ Dig the app? Buy me a coffee
+                </a>
             </div>
         </>
     );
