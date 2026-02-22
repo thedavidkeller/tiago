@@ -893,7 +893,7 @@ Rules:
             )}
             <div className="flex items-center gap-sm mt-md">
                 <div className="divider" />
-                <span className="t-caption text-tertiary" style={{ white‌space: 'nowrap', flexShrink: 0 }}>or</span>
+                <span className="t-caption text-tertiary" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>or</span>
                 <div className="divider" />
             </div>
             <Button variant="ghost" className="w-full mt-sm" icon="edit" onClick={onManual}>
@@ -1696,8 +1696,6 @@ const App = () => {
                     {step === 'summary' && result && (
                         <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} />
                     )}
-                </div>
-
                 </div>
             </div>
 
