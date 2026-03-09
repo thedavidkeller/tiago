@@ -824,6 +824,7 @@ Rules:
             const text = data.content[0].text;
             const clean = text.replace(/```json|```/g, '').trim();
             const parsed = JSON.parse(clean);
+            gtag('event', 'receipt_scan', { method: 'claude_ai' });
             onComplete({ ...parsed, imagePreview: preview });
         } catch (err) {
             setError(err.message.includes('parse') ? 'Could not read receipt. Try manual entry.' : err.message);
@@ -1164,6 +1165,7 @@ const SplitEditor = ({ receipt, people, onComplete }) => {
     const percentTotal = people.reduce((sum, p) => sum + (parseFloat(percents[p.id]) || 0), 0);
 
     const handleComplete = () => {
+        gtag('event', 'bill_split_completed', { split_mode: splitMode, people_count: people.length });
         onComplete({
             people,
             shares: getShares(),
@@ -1382,6 +1384,7 @@ const Summary = ({ result, onNew, onBack }) => {
     };
 
     const copyAmountForVenmo = async (person, amount) => {
+        gtag('event', 'venmo_link_click');
         try {
             await navigator.clipboard.writeText(amount.toFixed(2));
             setCopiedPerson(person.id);
