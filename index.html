@@ -873,6 +873,9 @@ Rules:
                         </div>
                     )}
                     <div className="flex gap-sm">
+                        <Button variant="secondary" onClick={() => { setPreview(null); setImageData(null); setError(null); }}>
+                            Retake
+                        </Button>
                         <Button
                             className="flex-1"
                             onClick={scanReceipt}
@@ -880,9 +883,6 @@ Rules:
                             icon={scanning ? null : 'sparkle'}
                         >
                             {scanning ? <><Spinner size={16} />&nbsp;&nbsp;Reading receipt…</> : 'Scan with Claude AI'}
-                        </Button>
-                        <Button variant="secondary" onClick={() => { setPreview(null); setImageData(null); setError(null); }}>
-                            Retake
                         </Button>
                     </div>
                     {!apiKey && (
@@ -1084,23 +1084,29 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
 
 // ─── SPLIT EDITOR ──────────────────────────────────────────────────────────
 
-const SplitEditor = ({ receipt, people, onComplete }) => {
-    const [splitMode, setSplitMode] = React.useState('item'); // item | custom | percent
+const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange }) => {
+    const [splitMode, setSplitMode] = React.useState(savedState?.splitMode || 'item'); // item | custom | percent
     // item assignments: { itemIdx: [personId] }
-    const [assignments, setAssignments] = React.useState({});
+    const [assignments, setAssignments] = React.useState(savedState?.assignments || {});
     // custom: { personId: amount }
-    const [customAmounts, setCustomAmounts] = React.useState(() =>
-        Object.fromEntries(people.map(p => [p.id, '']))
+    const [customAmounts, setCustomAmounts] = React.useState(
+        savedState?.customAmounts || Object.fromEntries(people.map(p => [p.id, '']))
     );
     // percent: { personId: percent }
     const [percents, setPercents] = React.useState(() => {
+        if (savedState?.percents) return savedState.percents;
         const even = (100 / people.length).toFixed(1);
         return Object.fromEntries(people.map(p => [p.id, even]));
     });
 
-    const [tipMode, setTipMode] = React.useState('even'); // even | proportional
-    const [tip, setTip] = React.useState(receipt.tip || 0);
-    const [tax, setTax] = React.useState(receipt.tax || 0);
+    const [tipMode, setTipMode] = React.useState(savedState?.tipMode || 'even'); // even | proportional
+    const [tip, setTip] = React.useState(savedState?.tip ?? (receipt.tip || 0));
+    const [tax, setTax] = React.useState(savedState?.tax ?? (receipt.tax || 0));
+
+    // Persist state to parent so it survives navigation away and back
+    React.useEffect(() => {
+        if (onStateChange) onStateChange({ assignments, customAmounts, percents, splitMode, tipMode, tip, tax });
+    }, [assignments, customAmounts, percents, splitMode, tipMode, tip, tax]);
 
     const subtotal = receipt.items.reduce((s, i) => s + i.price, 0);
     const total = subtotal + (parseFloat(tax) || 0) + (parseFloat(tip) || 0);
@@ -1524,12 +1530,13 @@ const Summary = ({ result, onNew, onBack }) => {
 const STEPS = ['scan', 'items', 'people', 'split', 'summary'];
 
 const App = () => {
-    const [apiKey, setApiKey] = React.useState(null);
-    const [showApiGate, setShowApiGate] = React.useState(true);
+    const [apiKey, setApiKey] = React.useState(() => localStorage.getItem('splitter-api-key') || null);
+    const [showApiGate, setShowApiGate] = React.useState(() => !localStorage.getItem('splitter-api-key'));
     const [step, setStep] = React.useState('scan'); // scan → items → people → split → summary
     const [receipt, setReceipt] = React.useState(null);
     const [people, setPeople] = React.useState(null);
     const [result, setResult] = React.useState(null);
+    const [splitState, setSplitState] = React.useState(null);
     const [transitioning, setTransitioning] = React.useState(false);
 
     const navigate = (target) => {
@@ -1543,6 +1550,8 @@ const App = () => {
     const handleApiKey = (key) => {
         setApiKey(key);
         setShowApiGate(false);
+        if (key) localStorage.setItem('splitter-api-key', key);
+        else localStorage.removeItem('splitter-api-key');
     };
 
     const handleReceiptScanned = (data) => {
@@ -1573,6 +1582,7 @@ const App = () => {
         setReceipt(null);
         setPeople(null);
         setResult(null);
+        setSplitState(null);
         navigate('scan');
     };
 
@@ -1694,6 +1704,8 @@ const App = () => {
                             receipt={receipt}
                             people={people}
                             onComplete={handleSplitComplete}
+                            savedState={splitState}
+                            onStateChange={setSplitState}
                         />
                     )}
                     {step === 'summary' && result && (
