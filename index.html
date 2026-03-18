@@ -604,6 +604,30 @@ const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 const genId = () => Math.random().toString(36).slice(2, 9);
 
+const SHARE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const NONCE_LEN = 20;
+
+const generateShareUrl = (receipt, people) => {
+    const data = { v: 1, at: Date.now(), receipt, people };
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    const charset = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const nonce = Array.from({ length: NONCE_LEN }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
+    return window.location.href.split('#')[0] + '#share_' + nonce + b64;
+};
+
+const parseShareUrl = () => {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#share_')) return null;
+    const payload = hash.slice(7); // strip '#share_'
+    const b64 = payload.slice(NONCE_LEN);
+    try {
+        const data = JSON.parse(decodeURIComponent(escape(atob(b64))));
+        if (!data.v || !data.at || !data.receipt || !data.people) return null;
+        if (Date.now() - data.at > SHARE_EXPIRY_MS) return { expired: true };
+        return data;
+    } catch (e) { return null; }
+};
+
 // ─── SVG ICONS ─────────────────────────────────────────────────────────────
 
 const Icon = ({ name, size = 18, color = 'currentColor', className = '' }) => {
@@ -1369,6 +1393,16 @@ const Summary = ({ result, onNew, onBack }) => {
     const { people, shares, receipt, splitMode } = result;
     const [copied, setCopied] = React.useState(false);
     const [copiedPerson, setCopiedPerson] = React.useState(null);
+    const [shareLinkCopied, setShareLinkCopied] = React.useState(false);
+
+    const handleShareLink = async () => {
+        const url = generateShareUrl(receipt, people);
+        try {
+            await navigator.clipboard.writeText(url);
+            setShareLinkCopied(true);
+            setTimeout(() => setShareLinkCopied(false), 3000);
+        } catch {}
+    };
 
     const personById = Object.fromEntries(people.map(p => [p.id, p]));
     // Sort by amount descending, but always put "You" last
@@ -1511,16 +1545,198 @@ const Summary = ({ result, onNew, onBack }) => {
                 <Button className="flex-1" variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copyToClipboard}>
                     {copied ? 'Copied!' : 'Copy summary'}
                 </Button>
-                <Button className="flex-1" variant="secondary" icon="share" onClick={() => {
-                    if (navigator.share) navigator.share({ title: 'The Splitter', text: summaryText });
-                }}>
-                    Share
+                <Button className="flex-1" variant="secondary" icon={shareLinkCopied ? 'check' : 'share'} onClick={handleShareLink}>
+                    {shareLinkCopied ? 'Link copied!' : 'Share link'}
                 </Button>
             </div>
+            {shareLinkCopied && (
+                <p className="t-caption text-tertiary text-center mb-sm">
+                    Link expires in 7 days — anyone with it can claim their items
+                </p>
+            )}
 
             <Button className="w-full" icon="plus" onClick={onNew}>
                 Split another bill
             </Button>
+        </div>
+    );
+};
+
+// ─── SHARED BILL VIEW ──────────────────────────────────────────────────────
+
+const SharedBillView = ({ data }) => {
+    const [selectedPersonId, setSelectedPersonId] = React.useState(null);
+    const [claimed, setClaimed] = React.useState({});
+    const [copied, setCopied] = React.useState(false);
+
+    if (data.expired) {
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+                <div className="card p-lg text-center fade-up" style={{ maxWidth: 400 }}>
+                    <p style={{ fontSize: 48, marginBottom: 16 }}>⏱</p>
+                    <h2 className="t-title mb-sm">Link expired</h2>
+                    <p className="t-body text-secondary">This bill link is more than 7 days old and has expired.</p>
+                </div>
+            </div>
+        );
+    }
+
+    const { receipt, people } = data;
+    const selectedPerson = people.find(p => p.id === selectedPersonId);
+
+    const toggleItem = (idx) => setClaimed(prev => ({ ...prev, [idx]: !prev[idx] }));
+
+    const subtotal = receipt.items.reduce((s, i) => s + i.price, 0);
+    const claimedItems = receipt.items.filter((_, idx) => claimed[idx]);
+    const mySubtotal = claimedItems.reduce((s, i) => s + i.price, 0);
+    const extras = (parseFloat(receipt.tax) || 0) + (parseFloat(receipt.tip) || 0);
+    const myTotal = mySubtotal + (subtotal > 0 ? (mySubtotal / subtotal) * extras : 0);
+
+    const copyAmount = async () => {
+        try {
+            await navigator.clipboard.writeText(myTotal.toFixed(2));
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+        } catch {}
+    };
+
+    return (
+        <div className="container" style={{ paddingTop: 48, paddingBottom: 120 }}>
+            <header className="flex items-center justify-between mb-xl">
+                <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 300, letterSpacing: '-0.01em' }}>
+                    the splitter
+                </h1>
+            </header>
+
+            {/* Bill hero */}
+            <div className="card p-lg mb-lg text-center" style={{
+                background: 'linear-gradient(135deg, rgba(212,43,43,0.07) 0%, rgba(10,10,10,0.04) 100%)',
+                borderColor: 'rgba(212,43,43,0.2)'
+            }}>
+                <p className="t-label text-secondary mb-sm">{receipt.restaurant}</p>
+                <p className="t-display" style={{ fontStyle: 'italic' }}>{formatCurrency(receipt.total)}</p>
+                <p className="t-caption text-tertiary mt-sm">{receipt.items.length} items</p>
+            </div>
+
+            {!selectedPersonId ? (
+                <div className="fade-up">
+                    <h2 className="t-headline mb-xs" style={{ fontStyle: 'italic' }}>Who are you?</h2>
+                    <p className="t-body text-secondary mb-md">Pick your name to see what you owe.</p>
+                    <div className="flex flex-col gap-sm">
+                        {people.map(p => (
+                            <button
+                                key={p.id}
+                                onClick={() => setSelectedPersonId(p.id)}
+                                style={{
+                                    background: 'rgba(24,24,23,0.7)',
+                                    border: '1px solid var(--border-base)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: '16px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                    color: 'var(--text-primary)',
+                                    fontSize: 16,
+                                    fontWeight: 500,
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    transition: 'border-color 160ms ease, background 160ms ease'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = p.color + '80'; e.currentTarget.style.background = p.color + '10'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-base)'; e.currentTarget.style.background = 'rgba(24,24,23,0.7)'; }}
+                            >
+                                <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                                {p.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div className="fade-up">
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: 'var(--text-tertiary)', paddingLeft: 0, marginBottom: 24 }}
+                        onClick={() => { setSelectedPersonId(null); setClaimed({}); }}
+                    >
+                        <Icon name="arrowLeft" size={14} /> Back
+                    </button>
+
+                    <h2 className="t-headline mb-xs" style={{ fontStyle: 'italic' }}>Hey, {selectedPerson.name}</h2>
+                    <p className="t-body text-secondary mb-md">Tap everything you ordered.</p>
+
+                    <div className="card mb-md">
+                        {receipt.items.map((item, idx) => {
+                            const isClaimed = !!claimed[idx];
+                            return (
+                                <div
+                                    key={idx}
+                                    className="flex items-center justify-between p-sm"
+                                    style={{
+                                        borderBottom: idx < receipt.items.length - 1 ? '1px solid var(--border-divider)' : 'none',
+                                        cursor: 'pointer',
+                                        background: isClaimed ? selectedPerson.color + '12' : 'transparent',
+                                        transition: 'background 160ms ease'
+                                    }}
+                                    onClick={() => toggleItem(idx)}
+                                >
+                                    <div className="flex items-center gap-sm">
+                                        <div className={`checkbox ${isClaimed ? 'checked' : ''}`} style={{
+                                            borderColor: isClaimed ? selectedPerson.color : 'var(--border-hover)',
+                                            background: isClaimed ? selectedPerson.color : 'transparent'
+                                        }}>
+                                            {isClaimed && <Icon name="check" size={11} color="#fff" />}
+                                        </div>
+                                        <span style={{ fontSize: 14, fontWeight: isClaimed ? 600 : 400, color: isClaimed ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                            {item.name}
+                                        </span>
+                                    </div>
+                                    <span style={{ fontWeight: 600, fontSize: 14, color: isClaimed ? selectedPerson.color : 'var(--text-secondary)' }}>
+                                        {formatCurrency(item.price)}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* My total card */}
+                    <div className="card p-md" style={{
+                        background: claimedItems.length > 0
+                            ? `linear-gradient(135deg, ${selectedPerson.color}15 0%, rgba(10,10,10,0.04) 100%)`
+                            : 'rgba(24,24,23,0.7)',
+                        borderColor: claimedItems.length > 0 ? selectedPerson.color + '50' : 'var(--border-base)',
+                        transition: 'all 300ms ease'
+                    }}>
+                        <div className="flex justify-between items-center mb-xs">
+                            <span className="t-label text-secondary">Your items</span>
+                            <span className="t-label text-secondary">{formatCurrency(mySubtotal)}</span>
+                        </div>
+                        {extras > 0 && mySubtotal > 0 && (
+                            <div className="flex justify-between items-center mb-xs">
+                                <span className="t-caption text-tertiary">Tax + tip (your share)</span>
+                                <span className="t-caption text-tertiary">+{formatCurrency(myTotal - mySubtotal)}</span>
+                            </div>
+                        )}
+                        <div className="divider mb-sm mt-xs" />
+                        <div className="flex justify-between items-center">
+                            <span className="t-title">You owe</span>
+                            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 32, fontWeight: 300, color: claimedItems.length > 0 ? selectedPerson.color : 'var(--text-tertiary)' }}>
+                                {formatCurrency(myTotal)}
+                            </span>
+                        </div>
+                        {claimedItems.length > 0 && (
+                            <Button
+                                className="w-full mt-md"
+                                icon={copied ? 'check' : 'copy'}
+                                onClick={copyAmount}
+                                style={{ background: selectedPerson.color, color: '#fff', borderColor: 'transparent' }}
+                            >
+                                {copied ? 'Copied!' : 'Copy my amount'}
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1530,6 +1746,7 @@ const Summary = ({ result, onNew, onBack }) => {
 const STEPS = ['scan', 'items', 'people', 'split', 'summary'];
 
 const App = () => {
+    const [shareData] = React.useState(() => parseShareUrl());
     const [apiKey, setApiKey] = React.useState(() => localStorage.getItem('splitter-api-key') || null);
     const [showApiGate, setShowApiGate] = React.useState(() => !localStorage.getItem('splitter-api-key'));
     const [step, setStep] = React.useState('scan'); // scan → items → people → split → summary
@@ -1600,6 +1817,8 @@ const App = () => {
         items: 'Review & adjust',
         summary: receipt?.restaurant || ''
     }[step] || null;
+
+    if (shareData) return <SharedBillView data={shareData} />;
 
     return (
         <>
