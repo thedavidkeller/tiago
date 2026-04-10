@@ -791,7 +791,7 @@ const ReceiptScanner = ({ apiKey, onComplete, onManual }) => {
     const fileRef = React.useRef();
 
     const handleFile = (file) => {
-        if (!file || !file.type.startsWith('image/')) return;
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
             setPreview(e.target.result);
@@ -823,7 +823,7 @@ const ReceiptScanner = ({ apiKey, onComplete, onManual }) => {
                         content: [
                             {
                                 type: 'image',
-                                source: { type: 'base64', media_type: 'image/jpeg', data: imageData }
+                                source: { type: 'base64', media_type: imageData ? (preview.match(/^data:([^;]+)/)?.[1] || 'image/jpeg') : 'image/jpeg', data: imageData }
                             },
                             {
                                 type: 'text',
