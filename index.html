@@ -1751,6 +1751,385 @@ const SharedBillView = ({ data }) => {
     );
 };
 
+// ─── TRIPS: STORAGE HELPERS ────────────────────────────────────────────────
+
+const TRIPS_KEY = 'tiago-trips-v1';
+const TRIP_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+const loadTrips = () => {
+    try {
+        const raw = localStorage.getItem(TRIPS_KEY);
+        if (!raw) return [];
+        const all = JSON.parse(raw);
+        const now = Date.now();
+        return all.filter(t => now - t.createdAt < TRIP_TTL_MS);
+    } catch { return []; }
+};
+
+const saveTrips = (trips) => {
+    try { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); } catch {}
+};
+
+const tripDaysRemaining = (createdAt) => {
+    const msLeft = TRIP_TTL_MS - (Date.now() - createdAt);
+    return Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
+};
+
+// ─── TRIP SPLIT VIEW ───────────────────────────────────────────────────────
+
+const TripSplitView = ({ trip, onBack }) => {
+    const [copiedId, setCopiedId] = React.useState(null);
+    const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
+    const perPerson = trip.people.length > 0 ? grandTotal / trip.people.length : 0;
+
+    const copyAmount = async (person) => {
+        try {
+            await navigator.clipboard.writeText(perPerson.toFixed(2));
+            setCopiedId(person.id);
+            setTimeout(() => setCopiedId(null), 2000);
+        } catch {}
+    };
+
+    return (
+        <div className="fade-up">
+            <div className="mb-md">
+                <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ color: 'var(--text-tertiary)', paddingLeft: 0 }}>
+                    <Icon name="arrowLeft" size={14} /> Back
+                </button>
+            </div>
+            <div className="card p-lg mb-md text-center" style={{
+                background: 'linear-gradient(135deg, rgba(212,43,43,0.07) 0%, rgba(10,10,10,0.04) 100%)',
+                borderColor: 'rgba(212,43,43,0.2)'
+            }}>
+                <p className="t-label text-secondary mb-sm">{trip.name}</p>
+                <p className="t-display" style={{ fontStyle: 'italic' }}>{formatCurrency(grandTotal)}</p>
+                <p className="t-caption text-tertiary mt-sm">
+                    {trip.receipts.length} receipt{trip.receipts.length !== 1 ? 's' : ''} · split equally among {trip.people.length}
+                </p>
+            </div>
+            <div className="card mb-md">
+                <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                    <div className="flex items-center justify-between">
+                        <p className="input-label">Each person owes</p>
+                        <p className="t-caption text-tertiary">tap to copy</p>
+                    </div>
+                </div>
+                {trip.people.map((p, i) => {
+                    const isCopied = copiedId === p.id;
+                    return (
+                        <div key={p.id} className="p-sm" style={{ borderBottom: i < trip.people.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-sm">
+                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color }} />
+                                    <span style={{ fontWeight: 500 }}>{p.name}</span>
+                                </div>
+                                <button
+                                    onClick={() => copyAmount(p)}
+                                    style={{
+                                        background: isCopied ? p.color + '20' : 'transparent',
+                                        border: `1px solid ${isCopied ? p.color + '60' : 'transparent'}`,
+                                        borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: 6,
+                                        transition: 'all 160ms ease', color: p.color
+                                    }}
+                                >
+                                    {isCopied
+                                        ? <><Icon name="check" size={13} color={p.color} /><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(perPerson)}</span></>
+                                        : <><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(perPerson)}</span><Icon name="copy" size={13} color="var(--text-tertiary)" /></>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="card p-sm" style={{ background: 'var(--surface-2)' }}>
+                <p className="input-label mb-sm">Receipts included</p>
+                {trip.receipts.map((r) => (
+                    <div key={r.id} className="flex justify-between t-caption text-secondary py-1">
+                        <span>{r.restaurant}</span>
+                        <span>{formatCurrency(r.total)}</span>
+                    </div>
+                ))}
+                <div className="divider mt-sm mb-sm" />
+                <div className="flex justify-between t-body" style={{ fontWeight: 700 }}>
+                    <span>Total</span><span>{formatCurrency(grandTotal)}</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── TRIP DETAIL ───────────────────────────────────────────────────────────
+
+const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDeleteReceipt }) => {
+    const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
+    return (
+        <div className="fade-up">
+            <div className="mb-md">
+                <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ color: 'var(--text-tertiary)', paddingLeft: 0 }}>
+                    <Icon name="arrowLeft" size={14} /> All trips
+                </button>
+            </div>
+            <div className="flex items-end justify-between mb-md">
+                <div>
+                    <h2 className="t-headline" style={{ fontStyle: 'italic' }}>{trip.name}</h2>
+                    <p className="t-caption text-tertiary mt-1">
+                        {trip.receipts.length} receipt{trip.receipts.length !== 1 ? 's' : ''} · {tripDaysRemaining(trip.createdAt)}d left
+                    </p>
+                </div>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 300, color: 'var(--primary)' }}>{formatCurrency(grandTotal)}</span>
+            </div>
+            {trip.receipts.length === 0 ? (
+                <div className="card p-lg text-center mb-md" style={{ borderStyle: 'dashed' }}>
+                    <p className="t-body text-tertiary" style={{ fontWeight: 500 }}>No receipts yet</p>
+                    <p className="t-caption text-tertiary mt-xs">Add your first receipt to get started</p>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-sm mb-md">
+                    {trip.receipts.map(r => (
+                        <div key={r.id} className="card p-sm flex items-center justify-between">
+                            <div>
+                                <p style={{ fontWeight: 500 }}>{r.restaurant}</p>
+                                <p className="t-caption text-tertiary">{new Date(r.addedAt).toLocaleDateString()}</p>
+                            </div>
+                            <div className="flex items-center gap-sm">
+                                <span style={{ fontWeight: 600 }}>{formatCurrency(r.total)}</span>
+                                <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)' }} onClick={() => onDeleteReceipt(r.id)}>
+                                    <Icon name="trash" size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <div className="flex gap-sm">
+                <Button variant="secondary" className="flex-1" icon="plus" onClick={onAddReceipt}>Add receipt</Button>
+                <Button
+                    className="flex-1"
+                    icon="sliders"
+                    disabled={trip.receipts.length === 0}
+                    onClick={() => trip.people.length === 0 ? onSetupPeople() : onSplitUp()}
+                >
+                    Split it up
+                </Button>
+            </div>
+        </div>
+    );
+};
+
+// ─── TRIPS MODE ────────────────────────────────────────────────────────────
+
+const TripsMode = ({ apiKey }) => {
+    const [trips, setTrips] = React.useState(loadTrips);
+    const [view, setView] = React.useState('list'); // list | create | detail | scan | items | people | split
+    const [selectedId, setSelectedId] = React.useState(null);
+    const [newTripName, setNewTripName] = React.useState('');
+    const [transitioning, setTransitioning] = React.useState(false);
+
+    const selectedTrip = trips.find(t => t.id === selectedId) || null;
+
+    const nav = (target) => {
+        setTransitioning(true);
+        setTimeout(() => { setView(target); setTransitioning(false); }, 180);
+    };
+
+    const updateTrip = (id, updater) => {
+        setTrips(prev => {
+            const next = prev.map(t => t.id === id ? updater(t) : t);
+            saveTrips(next);
+            return next;
+        });
+    };
+
+    const handleCreateTrip = () => {
+        if (!newTripName.trim()) return;
+        const trip = { id: genId(), name: newTripName.trim(), createdAt: Date.now(), people: [], receipts: [] };
+        const next = [trip, ...trips];
+        setTrips(next);
+        saveTrips(next);
+        setNewTripName('');
+        setSelectedId(trip.id);
+        nav('detail');
+    };
+
+    const handleDeleteTrip = (id) => {
+        const next = trips.filter(t => t.id !== id);
+        setTrips(next);
+        saveTrips(next);
+    };
+
+    const handleReceiptSaved = (receipt) => {
+        updateTrip(selectedId, t => ({
+            ...t,
+            receipts: [...t.receipts, {
+                id: genId(),
+                restaurant: receipt.restaurant || 'Receipt',
+                total: receipt.total || 0,
+                addedAt: Date.now(),
+                items: receipt.items || [],
+                subtotal: receipt.subtotal || 0,
+                tax: receipt.tax || 0,
+                tip: receipt.tip || 0
+            }]
+        }));
+        nav('detail');
+    };
+
+    const handlePeopleComplete = (people) => {
+        updateTrip(selectedId, t => ({ ...t, people }));
+        nav('split');
+    };
+
+    return (
+        <div style={{ opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)', transition: 'opacity 180ms ease, transform 180ms ease' }}>
+
+            {/* ── TRIP LIST ── */}
+            {view === 'list' && (
+                <div className="fade-up">
+                    <div className="flex items-center justify-between mb-md">
+                        <h2 className="t-headline" style={{ fontStyle: 'italic' }}>Your trips</h2>
+                        <Button size="sm" icon="plus" onClick={() => nav('create')}>New trip</Button>
+                    </div>
+                    {trips.length === 0 ? (
+                        <div className="card p-lg text-center" style={{ borderStyle: 'dashed' }}>
+                            <div style={{ fontSize: 36, marginBottom: 12 }}>✈️</div>
+                            <p className="t-body" style={{ fontWeight: 500 }}>No trips yet</p>
+                            <p className="t-caption text-secondary mt-xs mb-md">Save receipts across multiple meals — split everything at the end</p>
+                            <Button icon="plus" onClick={() => nav('create')}>Create your first trip</Button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-sm">
+                            {trips.map(trip => {
+                                const total = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
+                                const days = tripDaysRemaining(trip.createdAt);
+                                return (
+                                    <div key={trip.id} className="card p-sm card-hover" onClick={() => { setSelectedId(trip.id); nav('detail'); }}>
+                                        <div className="flex items-center justify-between">
+                                            <div style={{ minWidth: 0, flex: 1 }}>
+                                                <p style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{trip.name}</p>
+                                                <div className="flex gap-xs items-center mt-xs">
+                                                    <span className="badge badge-neutral">{trip.receipts.length} receipt{trip.receipts.length !== 1 ? 's' : ''}</span>
+                                                    <span className={`badge ${days <= 3 ? 'badge-warning' : 'badge-neutral'}`}>{days}d left</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-sm" style={{ flexShrink: 0 }}>
+                                                <span style={{ fontWeight: 700 }}>{formatCurrency(total)}</span>
+                                                <button
+                                                    className="btn btn-ghost btn-icon btn-sm"
+                                                    style={{ color: 'var(--text-tertiary)' }}
+                                                    onClick={e => { e.stopPropagation(); setSelectedId(trip.id); nav('scan'); }}
+                                                    title="Add receipt"
+                                                >
+                                                    <Icon name="plus" size={16} />
+                                                </button>
+                                                <button
+                                                    className="btn btn-ghost btn-icon btn-sm"
+                                                    style={{ color: 'var(--text-tertiary)' }}
+                                                    onClick={e => { e.stopPropagation(); handleDeleteTrip(trip.id); }}
+                                                    title="Delete trip"
+                                                >
+                                                    <Icon name="trash" size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── CREATE TRIP ── */}
+            {view === 'create' && (
+                <div className="fade-up">
+                    <div className="mb-md">
+                        <button className="btn btn-ghost btn-sm" onClick={() => nav('list')} style={{ color: 'var(--text-tertiary)', paddingLeft: 0 }}>
+                            <Icon name="arrowLeft" size={14} /> Back
+                        </button>
+                    </div>
+                    <h2 className="t-headline mb-md" style={{ fontStyle: 'italic' }}>New trip</h2>
+                    <Input
+                        label="Trip name"
+                        placeholder="e.g. London July 2026"
+                        value={newTripName}
+                        onChange={e => setNewTripName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleCreateTrip()}
+                        autoFocus
+                    />
+                    <Button className="w-full mt-md" onClick={handleCreateTrip} disabled={!newTripName.trim()} icon="arrowRight" iconRight="arrowRight">
+                        Create trip
+                    </Button>
+                </div>
+            )}
+
+            {/* ── TRIP DETAIL ── */}
+            {view === 'detail' && selectedTrip && (
+                <TripDetail
+                    trip={selectedTrip}
+                    onBack={() => nav('list')}
+                    onAddReceipt={() => nav('scan')}
+                    onSplitUp={() => nav('split')}
+                    onSetupPeople={() => nav('people')}
+                    onDeleteReceipt={receiptId => updateTrip(selectedId, t => ({ ...t, receipts: t.receipts.filter(r => r.id !== receiptId) }))}
+                />
+            )}
+
+            {/* ── ADD RECEIPT: SCAN ── */}
+            {view === 'scan' && (
+                <div className="fade-up">
+                    <div className="mb-md">
+                        <button className="btn btn-ghost btn-sm" onClick={() => nav('detail')} style={{ color: 'var(--text-tertiary)', paddingLeft: 0 }}>
+                            <Icon name="arrowLeft" size={14} /> Back
+                        </button>
+                    </div>
+                    <h2 className="t-headline mb-md" style={{ fontStyle: 'italic' }}>Add receipt</h2>
+                    <ReceiptScanner
+                        apiKey={apiKey}
+                        onComplete={handleReceiptSaved}
+                        onManual={() => nav('items')}
+                    />
+                </div>
+            )}
+
+            {/* ── ADD RECEIPT: MANUAL ── */}
+            {view === 'items' && (
+                <div className="fade-up">
+                    <div className="mb-md">
+                        <button className="btn btn-ghost btn-sm" onClick={() => nav('scan')} style={{ color: 'var(--text-tertiary)', paddingLeft: 0 }}>
+                            <Icon name="arrowLeft" size={14} /> Back
+                        </button>
+                    </div>
+                    <ManualEntry onComplete={handleReceiptSaved} />
+                </div>
+            )}
+
+            {/* ── PEOPLE SETUP ── */}
+            {view === 'people' && (
+                <div className="fade-up">
+                    <div className="mb-md">
+                        <button className="btn btn-ghost btn-sm" onClick={() => nav('detail')} style={{ color: 'var(--text-tertiary)', paddingLeft: 0 }}>
+                            <Icon name="arrowLeft" size={14} /> Back
+                        </button>
+                    </div>
+                    <h2 className="t-headline mb-md" style={{ fontStyle: 'italic' }}>Who's on the trip?</h2>
+                    <PeopleSetup
+                        onComplete={handlePeopleComplete}
+                        initialPeople={selectedTrip?.people?.length > 0 ? selectedTrip.people : undefined}
+                    />
+                </div>
+            )}
+
+            {/* ── TRIP SPLIT ── */}
+            {view === 'split' && selectedTrip && (
+                <TripSplitView trip={selectedTrip} onBack={() => nav('detail')} />
+            )}
+
+        </div>
+    );
+};
+
 // ─── MAIN APP ──────────────────────────────────────────────────────────────
 
 const STEPS = ['scan', 'items', 'people', 'split', 'summary'];
@@ -1765,6 +2144,7 @@ const App = () => {
     const [result, setResult] = React.useState(null);
     const [splitState, setSplitState] = React.useState(null);
     const [transitioning, setTransitioning] = React.useState(false);
+    const [appMode, setAppMode] = React.useState('split'); // split | trips
 
     const navigate = (target) => {
         setTransitioning(true);
@@ -1845,18 +2225,34 @@ const App = () => {
                             </span>
                         </h1>
                     </div>
-                    <button
-                        onClick={() => setShowApiGate(true)}
-                        className="btn btn-ghost btn-sm"
-                        style={{ color: 'var(--text-tertiary)', gap: 6 }}
-                    >
-                        <Icon name="key" size={13} />
-                        <span className="hide-mobile">API key</span>
-                    </button>
+                    <div className="flex items-center gap-sm">
+                        <div className="tab-bar" style={{ padding: 3 }}>
+                            <button
+                                className={`tab ${appMode === 'split' ? 'active' : ''}`}
+                                onClick={() => setAppMode('split')}
+                                style={{ height: 30, fontSize: 12, padding: '0 14px', flex: 'none' }}
+                            >Split</button>
+                            <button
+                                className={`tab ${appMode === 'trips' ? 'active' : ''}`}
+                                onClick={() => setAppMode('trips')}
+                                style={{ height: 30, fontSize: 12, padding: '0 14px', flex: 'none' }}
+                            >Trips</button>
+                        </div>
+                        <button
+                            onClick={() => setShowApiGate(true)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--text-tertiary)', gap: 6 }}
+                        >
+                            <Icon name="key" size={13} />
+                            <span className="hide-mobile">API key</span>
+                        </button>
+                    </div>
                 </header>
 
+                {appMode === 'trips' && <TripsMode apiKey={apiKey} />}
+
                 {/* Step indicator */}
-                {step !== 'summary' && (
+                {appMode === 'split' && step !== 'summary' && (
                     <div className="mb-lg fade-in">
                         {/* Progress dots */}
                         <div className="flex items-center gap-sm mb-md">
@@ -1911,6 +2307,7 @@ const App = () => {
                 )}
 
                 {/* Content */}
+                {appMode === 'split' && (
                 <div id="app-content" style={{ opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)', transition: 'opacity 180ms ease, transform 180ms ease' }}>
                     {step === 'scan' && (
                         <ReceiptScanner
@@ -1941,10 +2338,11 @@ const App = () => {
                         <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} />
                     )}
                 </div>
+                )}
             </div>
 
-            {/* Tip button - hidden on landing page */}
-            {!(step === 'scan' && !receipt) && (
+            {/* Tip button - hidden on split landing page */}
+            {(appMode === 'trips' || !(step === 'scan' && !receipt)) && (
                 <div style={{
                     position: 'fixed',
                     bottom: 0,
