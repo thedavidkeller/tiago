@@ -241,6 +241,11 @@
             80%       { transform: translateX(5px); }
         }
         .shake { animation: shake 0.45s ease-in-out; }
+        @keyframes fadeOut {
+            0%   { opacity: 1; }
+            60%  { opacity: 1; }
+            100% { opacity: 0; }
+        }
         @keyframes slideUpSheet {
             from { transform: translateY(100%); opacity: 0; }
             to   { transform: translateY(0);    opacity: 1; }
@@ -2063,6 +2068,7 @@ const ShareModal = ({ trip, onClose }) => {
 // ─── SHARED TRIP VIEW ──────────────────────────────────────────────────────
 
 const SharedTripView = ({ data }) => {
+    const [copiedIdx, setCopiedIdx] = React.useState(null);
     if (data.expired) return (
         <div className="container" style={{ paddingTop: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
             <div className="card p-lg text-center" style={{ maxWidth: 400 }}>
@@ -2156,6 +2162,11 @@ const SharedTripView = ({ data }) => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-sm">
+                                    {copiedIdx === i && (
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary)', animation: 'fadeOut 2s ease forwards' }}>
+                                            Copied!
+                                        </span>
+                                    )}
                                     <span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(s.amount)}</span>
                                     <button
                                         className="btn btn-ghost btn-icon btn-sm"
@@ -2164,6 +2175,8 @@ const SharedTripView = ({ data }) => {
                                         onClick={() => {
                                             const msg = `${formatCurrency(s.amount)} to ${s.to.name} for ${trip.name}`;
                                             navigator.clipboard.writeText(msg).catch(() => {});
+                                            setCopiedIdx(i);
+                                            setTimeout(() => setCopiedIdx(null), 2200);
                                         }}
                                     >
                                         <Icon name="copy" size={14} />
