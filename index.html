@@ -658,7 +658,7 @@ const generateTripShareUrl = (trip) => {
 // they can detect reliably. Falls back to the raw URL if the API call fails.
 const shortenUrl = async (url) => {
     try {
-        const res = await fetch('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(url));
+        const res = await fetch('/api/shorten?url=' + encodeURIComponent(url));
         if (!res.ok) throw new Error();
         const short = (await res.text()).trim();
         if (short.startsWith('http')) return short;
