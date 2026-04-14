@@ -2419,7 +2419,8 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
 
 // ─── TRIP DETAIL ───────────────────────────────────────────────────────────
 
-const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDeleteReceipt }) => {
+const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDeleteReceipt, onUpdateReceiptDate }) => {
+    const [editingDateId, setEditingDateId] = React.useState(null);
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     return (
         <div className="fade-up">
@@ -2446,9 +2447,30 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                 <div className="flex flex-col gap-sm mb-md">
                     {trip.receipts.map(r => (
                         <div key={r.id} className="card p-sm flex items-center justify-between">
-                            <div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
                                 <p style={{ fontWeight: 500 }}>{r.restaurant}</p>
-                                <p className="t-caption text-tertiary">{new Date(r.addedAt).toLocaleDateString()}</p>
+                                {editingDateId === r.id ? (
+                                    <input
+                                        type="date"
+                                        autoFocus
+                                        defaultValue={r.date || (r.addedAt ? new Date(r.addedAt).toISOString().slice(0, 10) : '')}
+                                        onChange={e => { if (e.target.value) { onUpdateReceiptDate(r.id, e.target.value); setEditingDateId(null); } }}
+                                        onBlur={() => setEditingDateId(null)}
+                                        style={{ fontSize: 12, color: 'var(--text-tertiary)', background: 'transparent', border: 'none', outline: 'none', padding: 0, marginTop: 2 }}
+                                    />
+                                ) : (
+                                    <p
+                                        className="t-caption text-tertiary"
+                                        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                        onClick={() => onUpdateReceiptDate && setEditingDateId(r.id)}
+                                    >
+                                        {r.date
+                                            ? (() => { try { const [y,m,d] = r.date.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return r.date; } })()
+                                            : new Date(r.addedAt).toLocaleDateString()
+                                        }
+                                        {onUpdateReceiptDate && <Icon name="edit" size={10} color="var(--text-tertiary)" />}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex items-center gap-sm">
                                 <span style={{ fontWeight: 600 }}>{formatCurrency(r.total)}</span>
@@ -2643,6 +2665,7 @@ const TripsMode = ({ apiKey }) => {
                     onSplitUp={() => nav('split')}
                     onSetupPeople={() => nav('people')}
                     onDeleteReceipt={receiptId => updateTrip(selectedId, t => ({ ...t, receipts: t.receipts.filter(r => r.id !== receiptId) }))}
+                    onUpdateReceiptDate={(receiptId, date) => updateTrip(selectedId, t => ({ ...t, receipts: t.receipts.map(r => r.id === receiptId ? { ...r, date } : r) }))}
                 />
             )}
 
