@@ -645,23 +645,19 @@ const generateTripShareUrl = (trip) => {
         people: trip.people.map(({ id, name, color }) => ({ id, name, color })),
         receipts: trip.receipts.map(({ restaurant, total, paidBy }) => ({ restaurant, total, paidBy }))
     };
-    // base64url, then escape - and _ so the URL only contains [A-Za-z0-9-]
-    // - → -h, _ → -s (unambiguous: decode scans left-to-right consuming each -h/-s pair)
-    const b64url = toBase64Url(JSON.stringify({ tv: 1, at: Date.now(), trip: slim }));
-    const encoded = b64url.replace(/[-_]/g, c => c === '-' ? '-h' : '-s');
-    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
-    const nonce = Array.from({ length: NONCE_LEN }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
-    return window.location.href.split('#')[0] + '#tripshare' + nonce + encoded;
+    const json = JSON.stringify({ tv: 1, at: Date.now(), trip: slim });
+    // Hex encode: only [0-9a-f] — no special chars, guaranteed iMessage-safe
+    const encoded = Array.from(new TextEncoder().encode(json), b => b.toString(16).padStart(2, '0')).join('');
+    return window.location.href.split('#')[0] + '#tripshare' + encoded;
 };
 
 const parseTripShareUrl = () => {
     const hash = window.location.hash;
     if (!hash.startsWith('#tripshare')) return null;
-    const payload = hash.slice(10); // strip '#tripshare'
-    const encoded = payload.slice(NONCE_LEN);
+    const hex = hash.slice(10); // strip '#tripshare'
     try {
-        const b64url = encoded.replace(/-[hs]/g, m => m === '-h' ? '-' : '_');
-        const data = JSON.parse(fromBase64Url(b64url));
+        const bytes = new Uint8Array(hex.match(/.{2}/g).map(h => parseInt(h, 16)));
+        const data = JSON.parse(new TextDecoder().decode(bytes));
         if (!data.tv || !data.at || !data.trip) return null;
         return data;
     } catch (e) { return null; }
