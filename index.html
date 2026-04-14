@@ -654,6 +654,20 @@ const generateTripShareUrl = (trip) => {
     return base + '?' + encoded;
 };
 
+// Shorten a URL via is.gd so messaging apps (iMessage etc.) get a short link
+// they can detect reliably. Falls back to the raw URL if the API call fails.
+const shortenUrl = async (url) => {
+    try {
+        const res = await fetch('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(url));
+        if (!res.ok) throw new Error();
+        const short = (await res.text()).trim();
+        if (short.startsWith('http')) return short;
+        throw new Error();
+    } catch {
+        return url; // fallback: copy long URL
+    }
+};
+
 const parseTripShareUrl = () => {
     const search = window.location.search;
     if (!search || search.length < 10) return null;
@@ -1943,19 +1957,24 @@ const tripDaysRemaining = (createdAt) => {
 // ─── TRIP SPLIT VIEW ───────────────────────────────────────────────────────
 
 const TripSplitView = ({ trip, onBack, onUpdateReceipt }) => {
-    const [shareLinkCopied, setShareLinkCopied] = React.useState(false);
+    const [shareState, setShareState] = React.useState('idle'); // idle | loading | copied
     const people = trip.people;
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const fairShare = people.length > 0 ? grandTotal / people.length : 0;
     const allAssigned = trip.receipts.length > 0 && trip.receipts.every(r => r.paidBy);
 
     const handleShareLink = async () => {
-        const url = generateTripShareUrl(trip);
+        if (shareState === 'loading') return;
+        setShareState('loading');
+        const longUrl = generateTripShareUrl(trip);
+        const url = await shortenUrl(longUrl);
         try {
             await navigator.clipboard.writeText(url);
-            setShareLinkCopied(true);
-            setTimeout(() => setShareLinkCopied(false), 3000);
-        } catch {}
+            setShareState('copied');
+            setTimeout(() => setShareState('idle'), 3000);
+        } catch {
+            setShareState('idle');
+        }
     };
 
     // Compute per-person balances
@@ -2002,8 +2021,8 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt }) => {
                 </p>
             </div>
 
-            <Button className="w-full mb-md" variant="secondary" icon={shareLinkCopied ? 'check' : 'share'} onClick={handleShareLink}>
-                {shareLinkCopied ? 'Link copied!' : 'Share trip link'}
+            <Button className="w-full mb-md" variant="secondary" icon={shareState === 'copied' ? 'check' : 'share'} onClick={handleShareLink} disabled={shareState === 'loading'}>
+                {shareState === 'loading' ? 'Creating link…' : shareState === 'copied' ? 'Link copied!' : 'Share trip link'}
             </Button>
 
             {/* Payer assignment per receipt */}
