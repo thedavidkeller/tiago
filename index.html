@@ -2288,7 +2288,9 @@ const tripDaysRemaining = (createdAt) => {
 // ─── TRIP SPLIT VIEW ───────────────────────────────────────────────────────
 
 const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
-    const [showShareModal, setShowShareModal] = React.useState(false);
+    const [shareStep, setShareStep] = React.useState('idle'); // idle | ask | pin | done
+    const [sharePin, setSharePin] = React.useState('');
+    const [shareLoading, setShareLoading] = React.useState(false);
     const [editingNames, setEditingNames] = React.useState(false);
     const [draftNames, setDraftNames] = React.useState({});
     const people = trip.people;
@@ -2340,10 +2342,54 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
                 </p>
             </div>
 
-            {showShareModal && <ShareModal trip={trip} onClose={() => setShowShareModal(false)} />}
-            <Button className="w-full mb-md" variant="secondary" icon="share" onClick={() => setShowShareModal(true)}>
-                Share trip link
-            </Button>
+            {shareStep === 'idle' ? (
+                <Button className="w-full mb-md" variant="secondary" icon="share" onClick={() => setShareStep('ask')}>
+                    Share trip link
+                </Button>
+            ) : (
+                <div className="card mb-md fade-up" style={{ overflow: 'hidden' }}>
+                    {shareStep === 'done' ? (
+                        <div className="p-md text-center" style={{ padding: '20px 16px' }}>
+                            <div style={{ color: 'var(--primary)', marginBottom: 6 }}><Icon name="check" size={28} /></div>
+                            <p style={{ fontWeight: 600, fontSize: 16 }}>Copied!</p>
+                        </div>
+                    ) : shareStep === 'pin' ? (
+                        <div style={{ padding: '16px' }}>
+                            <div className="flex items-center justify-between mb-md">
+                                <p style={{ fontWeight: 500, fontSize: 14 }}>Set a PIN</p>
+                                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-tertiary)', fontSize: 12 }} onClick={() => { setSharePin(''); setShareStep('ask'); }}>Back</button>
+                            </div>
+                            <input
+                                type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} autoFocus
+                                value={sharePin}
+                                onChange={e => setSharePin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                onKeyDown={async e => { if (e.key === 'Enter' && sharePin.length === 4) { setShareLoading(true); const u = await shortenUrl(await generateTripHashUrl(trip, sharePin)); await navigator.clipboard.writeText(u).catch(()=>{}); if (navigator.share) { try { await navigator.share({url:u}); } catch(_){} } setShareStep('done'); setTimeout(()=>setShareStep('idle'),1600); setShareLoading(false); } }}
+                                placeholder="0000"
+                                className="input-field mb-md"
+                                style={{ textAlign: 'center', fontSize: 26, letterSpacing: '0.4em' }}
+                            />
+                            <Button className="w-full" disabled={sharePin.length !== 4 || shareLoading}
+                                onClick={async () => { setShareLoading(true); const u = await shortenUrl(await generateTripHashUrl(trip, sharePin)); if (navigator.share) { try { await navigator.share({url:u}); setShareStep('idle'); setShareLoading(false); return; } catch(e) { if(e.name==='AbortError'){setShareStep('idle');setShareLoading(false);return;} } } await navigator.clipboard.writeText(u).catch(()=>{}); setShareStep('done'); setTimeout(()=>setShareStep('idle'),1600); setShareLoading(false); }}>
+                                {shareLoading ? 'Generating…' : 'Copy link'}
+                            </Button>
+                        </div>
+                    ) : (
+                        <div style={{ padding: '16px' }}>
+                            <div className="flex items-center justify-between mb-md">
+                                <p style={{ fontWeight: 500, fontSize: 14 }}>Protect with a PIN?</p>
+                                <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-tertiary)', fontSize: 12 }} onClick={() => setShareStep('idle')}>Cancel</button>
+                            </div>
+                            <div className="flex flex-col gap-sm">
+                                <Button variant="secondary" icon="shield" className="w-full" onClick={() => setShareStep('pin')}>Yes, add a PIN</Button>
+                                <Button className="w-full" disabled={shareLoading}
+                                    onClick={async () => { setShareLoading(true); const u = await shortenUrl(await generateTripHashUrl(trip, null)); if (navigator.share) { try { await navigator.share({url:u}); setShareStep('idle'); setShareLoading(false); return; } catch(e) { if(e.name==='AbortError'){setShareStep('idle');setShareLoading(false);return;} } } await navigator.clipboard.writeText(u).catch(()=>{}); setShareStep('done'); setTimeout(()=>setShareStep('idle'),1600); setShareLoading(false); }}>
+                                    {shareLoading ? 'Generating…' : 'No, just copy link'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Payer assignment per receipt */}
             <div className="card mb-md">
