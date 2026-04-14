@@ -241,6 +241,10 @@
             80%       { transform: translateX(5px); }
         }
         .shake { animation: shake 0.45s ease-in-out; }
+        @keyframes slideUpSheet {
+            from { transform: translateY(100%); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
                 @keyframes shimmer {
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
@@ -1950,61 +1954,107 @@ const PinGate = ({ encoded }) => {
 // ─── SHARE MODAL ───────────────────────────────────────────────────────────
 
 const ShareModal = ({ trip, onClose }) => {
+    const [step, setStep] = React.useState('ask'); // ask | pin | copying | done
     const [pin, setPin] = React.useState('');
-    const [status, setStatus] = React.useState('idle'); // idle | loading | done
+    const [loading, setLoading] = React.useState(false);
+    const [closing, setClosing] = React.useState(false);
 
-    const handleCopy = async () => {
-        if (status === 'loading') return;
-        setStatus('loading');
+    const dismiss = () => {
+        setClosing(true);
+        setTimeout(onClose, 260);
+    };
+
+    const doShare = async (pinVal) => {
+        setLoading(true);
         try {
-            const longUrl = await generateTripHashUrl(trip, pin.length === 4 ? pin : null);
+            const longUrl = await generateTripHashUrl(trip, pinVal && pinVal.length === 4 ? pinVal : null);
             const url = await shortenUrl(longUrl);
             if (navigator.share) {
                 await navigator.share({ url });
-            } else {
-                await navigator.clipboard.writeText(url);
+                onClose();
+                return;
             }
-            setStatus('done');
-            setTimeout(() => { setStatus('idle'); onClose(); }, 2000);
+            await navigator.clipboard.writeText(url).catch(() => {});
+            setStep('done');
+            setTimeout(() => dismiss(), 1400);
         } catch (e) {
-            if (e.name !== 'AbortError') setStatus('idle');
-            else setStatus('idle');
+            if (e.name === 'AbortError') onClose();
+            else setLoading(false);
         }
     };
 
+    const sheetStyle = {
+        width: '100%',
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
+        borderTopLeftRadius: 'var(--radius-lg, 16px)',
+        borderTopRightRadius: 'var(--radius-lg, 16px)',
+        padding: '20px 20px 44px',
+        transition: closing ? 'transform 0.26s ease-in, opacity 0.26s ease-in' : 'none',
+        transform: closing ? 'translateY(100%)' : 'translateY(0)',
+        opacity: closing ? 0 : 1,
+        animation: closing ? 'none' : 'slideUpSheet 0.28s cubic-bezier(0.32,0.72,0,1)',
+    };
+
     return (
-        <div className="api-gate" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-            <div className="card p-lg fade-up" style={{ maxWidth: 380, width: '100%' }}>
-                <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 22, marginBottom: 4 }}>Share trip</h2>
-                <p className="t-caption text-secondary mb-md">Optionally add a PIN to protect the link</p>
+        <div
+            className="api-gate"
+            style={{ alignItems: 'flex-end', padding: 0 }}
+            onClick={e => { if (e.target === e.currentTarget) dismiss(); }}
+        >
+            <div className="card" style={sheetStyle}>
+                {/* drag handle */}
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-divider)', margin: '0 auto 20px' }} />
 
-                <label className="input-label mb-xs" style={{ display: 'block' }}>PIN (optional)</label>
-                <input
-                    ref={inputRef}
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={4}
-                    value={pin}
-                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    onKeyDown={e => e.key === 'Enter' && (pin.length === 0 || pin.length === 4) && handleCopy()}
-                    placeholder="Leave blank for no PIN"
-                    className="input-field mb-md"
-                    style={{ fontSize: pin.length > 0 ? 20 : 14, letterSpacing: pin.length > 0 ? '0.3em' : 'normal' }}
-                />
-                {pin.length > 0 && pin.length < 4 && (
-                    <p className="t-caption text-tertiary mb-md" style={{ marginTop: -10 }}>PIN must be exactly 4 digits</p>
+                {step === 'done' ? (
+                    <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
+                        <div style={{ color: 'var(--primary)', marginBottom: 10 }}><Icon name="check" size={36} /></div>
+                        <p style={{ fontWeight: 600, fontSize: 18 }}>Copied!</p>
+                    </div>
+
+                ) : step === 'pin' ? (
+                    <>
+                        <div className="flex items-center justify-between mb-md">
+                            <h3 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 20 }}>Set a PIN</h3>
+                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-tertiary)' }} onClick={() => { setPin(''); setStep('ask'); }}>Back</button>
+                        </div>
+                        <input
+                            type="tel"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={4}
+                            autoFocus
+                            value={pin}
+                            onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            onKeyDown={e => e.key === 'Enter' && pin.length === 4 && doShare(pin)}
+                            placeholder="0000"
+                            className="input-field mb-md"
+                            style={{ textAlign: 'center', fontSize: 28, letterSpacing: '0.4em', fontFamily: 'var(--font-sans)' }}
+                        />
+                        <Button
+                            className="w-full"
+                            icon={loading ? null : 'link'}
+                            onClick={() => doShare(pin)}
+                            disabled={pin.length !== 4 || loading}
+                        >
+                            {loading ? 'Generating…' : 'Copy link'}
+                        </Button>
+                    </>
+
+                ) : (
+                    <>
+                        <h3 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 20, marginBottom: 4 }}>Share trip</h3>
+                        <p className="t-caption text-secondary mb-lg">Protect this link with a PIN?</p>
+                        <div className="flex flex-col gap-sm">
+                            <Button className="w-full" variant="secondary" icon="shield" onClick={() => setStep('pin')}>
+                                Yes, add a PIN
+                            </Button>
+                            <Button className="w-full" onClick={() => doShare(null)} disabled={loading}>
+                                {loading ? 'Generating…' : 'No, just copy link'}
+                            </Button>
+                        </div>
+                    </>
                 )}
-
-                <Button
-                    className="w-full mb-sm"
-                    icon={status === 'done' ? 'check' : 'link'}
-                    onClick={handleCopy}
-                    disabled={status === 'loading' || (pin.length > 0 && pin.length < 4)}
-                >
-                    {status === 'loading' ? 'Generating…' : status === 'done' ? 'Link copied!' : 'Copy link'}
-                </Button>
-                <Button className="w-full" variant="ghost" onClick={onClose}>Cancel</Button>
             </div>
         </div>
     );
