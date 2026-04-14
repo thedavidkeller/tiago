@@ -638,6 +638,26 @@ const parseShareUrl = () => {
     } catch (e) { return null; }
 };
 
+const generateTripShareUrl = (trip) => {
+    const data = { tv: 1, at: Date.now(), trip };
+    const encoded = toBase64Url(JSON.stringify(data));
+    const charset = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const nonce = Array.from({ length: NONCE_LEN }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
+    return window.location.href.split('#')[0] + '#tripshare_' + nonce + encoded;
+};
+
+const parseTripShareUrl = () => {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#tripshare_')) return null;
+    const payload = hash.slice(11); // strip '#tripshare_'
+    const encoded = payload.slice(NONCE_LEN);
+    try {
+        const data = JSON.parse(fromBase64Url(encoded));
+        if (!data.tv || !data.at || !data.trip) return null;
+        return data;
+    } catch (e) { return null; }
+};
+
 // ─── SVG ICONS ─────────────────────────────────────────────────────────────
 
 const Icon = ({ name, size = 18, color = 'currentColor', className = '' }) => {
@@ -1751,6 +1771,137 @@ const SharedBillView = ({ data }) => {
     );
 };
 
+// ─── SHARED TRIP VIEW ──────────────────────────────────────────────────────
+
+const SharedTripView = ({ data }) => {
+    const { trip } = data;
+    const people = trip.people || [];
+    const receipts = trip.receipts || [];
+    const grandTotal = receipts.reduce((s, r) => s + (r.total || 0), 0);
+    const fairShare = people.length > 0 ? grandTotal / people.length : 0;
+    const allAssigned = receipts.length > 0 && receipts.every(r => r.paidBy);
+
+    const balances = people.map(p => {
+        const paid = receipts.filter(r => r.paidBy === p.id).reduce((s, r) => s + (r.total || 0), 0);
+        return { ...p, paid, balance: paid - fairShare };
+    });
+
+    const settlements = [];
+    if (allAssigned && people.length > 0) {
+        const debtors = balances.filter(p => p.balance < -0.005).map(p => ({ ...p }));
+        const creditors = balances.filter(p => p.balance > 0.005).map(p => ({ ...p }));
+        debtors.sort((a, b) => a.balance - b.balance);
+        creditors.sort((a, b) => b.balance - a.balance);
+        let d = 0, c = 0;
+        while (d < debtors.length && c < creditors.length) {
+            const amount = Math.min(-debtors[d].balance, creditors[c].balance);
+            settlements.push({ from: debtors[d], to: creditors[c], amount });
+            debtors[d].balance += amount;
+            creditors[c].balance -= amount;
+            if (Math.abs(debtors[d].balance) < 0.005) d++;
+            if (Math.abs(creditors[c].balance) < 0.005) c++;
+        }
+    }
+
+    return (
+        <div className="container" style={{ paddingTop: 48, paddingBottom: 80 }}>
+            <header className="flex items-center justify-between mb-xl">
+                <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 300, letterSpacing: '-0.01em', fontStyle: 'italic' }}>
+                    tiago
+                </div>
+            </header>
+
+            <div className="card p-lg mb-md text-center" style={{
+                background: 'linear-gradient(135deg, rgba(212,43,43,0.07) 0%, rgba(10,10,10,0.04) 100%)',
+                borderColor: 'rgba(212,43,43,0.2)'
+            }}>
+                <p className="t-label text-secondary mb-sm">{trip.name}</p>
+                <p className="t-display" style={{ fontStyle: 'italic' }}>{formatCurrency(grandTotal)}</p>
+                <p className="t-caption text-tertiary mt-sm">
+                    {receipts.length} receipt{receipts.length !== 1 ? 's' : ''} · {people.length} people · {formatCurrency(fairShare)} each
+                </p>
+            </div>
+
+            {allAssigned ? (
+                <div className="card mb-md">
+                    <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                        <p className="input-label">Settlements</p>
+                    </div>
+                    {settlements.length === 0 ? (
+                        <div className="p-sm text-center">
+                            <p className="t-caption text-secondary">Everyone's even!</p>
+                        </div>
+                    ) : settlements.map((s, i) => (
+                        <div key={i} className="p-sm" style={{ borderBottom: i < settlements.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-sm" style={{ flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.from.color }} />
+                                        <span style={{ fontWeight: 500 }}>{s.from.name}</span>
+                                    </div>
+                                    <span className="t-caption text-tertiary">pays</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.to.color }} />
+                                        <span style={{ fontWeight: 500 }}>{s.to.name}</span>
+                                    </div>
+                                </div>
+                                <span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(s.amount)}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="card p-md mb-md text-center" style={{ borderStyle: 'dashed' }}>
+                    <p className="t-caption text-secondary">Payers haven't been assigned yet</p>
+                </div>
+            )}
+
+            {allAssigned && (
+                <div className="card mb-md">
+                    <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                        <p className="input-label">Balance breakdown</p>
+                    </div>
+                    {balances.map((p, i) => (
+                        <div key={p.id} className="p-sm flex items-center justify-between t-caption" style={{ borderBottom: i < balances.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                            <div className="flex items-center gap-xs">
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
+                                <span>{p.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 16 }}>
+                                <span className="text-tertiary">paid {formatCurrency(p.paid)}</span>
+                                <span style={{ fontWeight: 600, minWidth: 60, textAlign: 'right', color: p.balance > 0.005 ? 'var(--primary)' : p.balance < -0.005 ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                                    {p.balance > 0.005 ? `+${formatCurrency(p.balance)}` : formatCurrency(p.balance)}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="card p-sm" style={{ background: 'var(--surface-2)' }}>
+                <p className="input-label mb-sm">Receipts</p>
+                {receipts.map((r, i) => {
+                    const payer = people.find(p => p.id === r.paidBy);
+                    return (
+                        <div key={r.id} className="flex justify-between t-caption text-secondary py-1" style={{ borderBottom: i < receipts.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                            <div className="flex items-center gap-xs">
+                                {payer && <div style={{ width: 7, height: 7, borderRadius: '50%', background: payer.color }} />}
+                                <span>{r.restaurant}</span>
+                                {payer && <span className="text-tertiary">· {payer.name}</span>}
+                            </div>
+                            <span>{formatCurrency(r.total)}</span>
+                        </div>
+                    );
+                })}
+                <div className="divider mt-sm mb-sm" />
+                <div className="flex justify-between t-body" style={{ fontWeight: 700 }}>
+                    <span>Total</span><span>{formatCurrency(grandTotal)}</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ─── TRIPS: STORAGE HELPERS ────────────────────────────────────────────────
 
 const TRIPS_KEY = 'tiago-trips-v1';
@@ -1778,10 +1929,20 @@ const tripDaysRemaining = (createdAt) => {
 // ─── TRIP SPLIT VIEW ───────────────────────────────────────────────────────
 
 const TripSplitView = ({ trip, onBack, onUpdateReceipt }) => {
+    const [shareLinkCopied, setShareLinkCopied] = React.useState(false);
     const people = trip.people;
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const fairShare = people.length > 0 ? grandTotal / people.length : 0;
     const allAssigned = trip.receipts.length > 0 && trip.receipts.every(r => r.paidBy);
+
+    const handleShareLink = async () => {
+        const url = generateTripShareUrl(trip);
+        try {
+            await navigator.clipboard.writeText(url);
+            setShareLinkCopied(true);
+            setTimeout(() => setShareLinkCopied(false), 3000);
+        } catch {}
+    };
 
     // Compute per-person balances
     const balances = people.map(p => {
@@ -1826,6 +1987,10 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt }) => {
                     {trip.receipts.length} receipt{trip.receipts.length !== 1 ? 's' : ''} · {people.length} people · {formatCurrency(fairShare)} each
                 </p>
             </div>
+
+            <Button className="w-full mb-md" variant="secondary" icon={shareLinkCopied ? 'check' : 'share'} onClick={handleShareLink}>
+                {shareLinkCopied ? 'Link copied!' : 'Share trip link'}
+            </Button>
 
             {/* Payer assignment per receipt */}
             <div className="card mb-md">
@@ -2204,7 +2369,8 @@ const TripsMode = ({ apiKey }) => {
 const STEPS = ['scan', 'items', 'people', 'split', 'summary'];
 
 const App = () => {
-    const [shareData] = React.useState(() => parseShareUrl());
+    const [tripShareData] = React.useState(() => parseTripShareUrl());
+    const [shareData] = React.useState(() => tripShareData ? null : parseShareUrl());
     const [apiKey, setApiKey] = React.useState(() => localStorage.getItem('splitter-api-key') || null);
     const [showApiGate, setShowApiGate] = React.useState(() => !localStorage.getItem('splitter-api-key'));
     const [step, setStep] = React.useState('scan'); // scan → items → people → split → summary
@@ -2277,6 +2443,7 @@ const App = () => {
         summary: receipt?.restaurant || ''
     }[step] || null;
 
+    if (tripShareData) return <SharedTripView data={tripShareData} />;
     if (shareData) return <SharedBillView data={shareData} />;
 
     return (
