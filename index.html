@@ -2511,14 +2511,14 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                                 ) : (
                                     <button
                                         className="btn btn-ghost btn-sm"
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 0', color: 'var(--text-tertiary)', fontSize: 12, fontWeight: 400 }}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '2px 0', color: 'var(--text-tertiary)', fontSize: 12, fontWeight: 400 }}
                                         onClick={() => setEditingDateId(r.id)}
                                     >
-                                        <Icon name="edit" size={11} />
                                         {r.date
                                             ? (() => { try { const [y,m,d] = r.date.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return r.date; } })()
                                             : new Date(r.addedAt).toLocaleDateString()
                                         }
+                                        <Icon name="edit" size={11} />
                                     </button>
                                 )}
                             </div>
