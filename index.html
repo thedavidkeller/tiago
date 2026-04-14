@@ -1069,7 +1069,7 @@ Rules:
 
 // ─── MANUAL ENTRY ──────────────────────────────────────────────────────────
 
-const ManualEntry = ({ initial, onComplete }) => {
+const ManualEntry = ({ initial, onComplete, submitLabel = 'Set up the split' }) => {
     const [restaurant, setRestaurant] = React.useState(initial?.restaurant || '');
     const [items, setItems] = React.useState(
         initial?.items?.length ? initial.items.map(i => ({ ...i, id: genId() }))
@@ -1163,7 +1163,7 @@ const ManualEntry = ({ initial, onComplete }) => {
             </div>
 
             <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit} icon="arrowRight" iconRight="arrowRight">
-                Set up the split
+                {submitLabel}
             </Button>
         </div>
     );
@@ -2637,7 +2637,7 @@ const TripsMode = ({ apiKey }) => {
                             <Icon name="arrowLeft" size={14} /> Back
                         </button>
                     </div>
-                    <ManualEntry onComplete={handleReceiptSaved} />
+                    <ManualEntry onComplete={handleReceiptSaved} submitLabel="Add to Trip" />
                 </div>
             )}
 
