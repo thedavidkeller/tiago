@@ -1928,7 +1928,6 @@ const PinGate = ({ encoded }) => {
                 <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 22, marginBottom: 6 }}>PIN protected</h2>
                 <p className="t-caption text-secondary mb-md">Enter the 4-digit PIN to view this trip</p>
                 <input
-                    ref={inputRef}
                     type="tel"
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -1953,9 +1952,6 @@ const PinGate = ({ encoded }) => {
 const ShareModal = ({ trip, onClose }) => {
     const [pin, setPin] = React.useState('');
     const [status, setStatus] = React.useState('idle'); // idle | loading | done
-    const inputRef = React.useRef(null);
-
-    React.useEffect(() => { inputRef.current?.focus(); }, []);
 
     const handleCopy = async () => {
         if (status === 'loading') return;
