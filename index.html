@@ -645,17 +645,23 @@ const generateTripShareUrl = (trip) => {
         people: trip.people.map(({ id, name, color }) => ({ id, name, color })),
         receipts: trip.receipts.map(({ restaurant, total, paidBy }) => ({ restaurant, total, paidBy }))
     };
-    const encoded = toBase64Url(JSON.stringify({ tv: 1, at: Date.now(), trip: slim }));
-    // Use query param instead of hash fragment — iMessage includes ?params in link detection but drops #fragments
+    const json = JSON.stringify({ tv: 1, at: Date.now(), trip: slim });
+    // Use . instead of _ (and - instead of +), drop = padding — only [A-Za-z0-9-.]
+    // Put data directly after ? with no key=value — iMessage stops at = so ?key=value breaks
+    const encoded = btoa(unescape(encodeURIComponent(json)))
+        .replace(/\+/g, '-').replace(/\//g, '.').replace(/=/g, '');
     const base = window.location.href.split(/[#?]/)[0];
-    return base + '?t=' + encoded;
+    return base + '?' + encoded;
 };
 
 const parseTripShareUrl = () => {
-    const encoded = new URLSearchParams(window.location.search).get('t');
-    if (!encoded) return null;
+    const search = window.location.search;
+    if (!search || search.length < 10) return null;
+    const encoded = search.slice(1); // strip leading ?
     try {
-        const data = JSON.parse(fromBase64Url(encoded));
+        const b64 = encoded.replace(/-/g, '+').replace(/\./g, '/');
+        const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - b64.length % 4);
+        const data = JSON.parse(decodeURIComponent(escape(atob(b64 + pad))));
         if (!data.tv || !data.at || !data.trip) return null;
         return data;
     } catch (e) { return null; }
