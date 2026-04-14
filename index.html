@@ -2109,18 +2109,15 @@ const SharedTripView = ({ data }) => {
 
     return (
         <div className="container" style={{ paddingTop: 48, paddingBottom: 80 }}>
-            <header style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', marginBottom: 'var(--space-xl)' }}>
+            <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-xl)' }}>
                 <div>
                     <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 300, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', margin: 0 }}>
                         <img src={LOGO_IMG_SRC} style={{ width: 96, height: 96, borderRadius: 0 }} alt="" />
                     </h1>
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                    <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-tertiary)', fontSize: 20, fontWeight: 300, letterSpacing: '-0.01em' }}>
-                        / the splitter
-                    </span>
-                </div>
-                <div />
+                <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-tertiary)', fontSize: 20, fontWeight: 300, letterSpacing: '-0.01em' }}>
+                    / the splitter
+                </span>
             </header>
 
             <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 26, letterSpacing: '-0.01em', textAlign: 'center', margin: '0 0 var(--space-md)' }}>
