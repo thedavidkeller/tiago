@@ -2509,17 +2509,17 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                                         style={{ fontSize: 12, color: 'var(--text-tertiary)', background: 'transparent', border: 'none', outline: 'none', padding: 0, marginTop: 2 }}
                                     />
                                 ) : (
-                                    <p
-                                        className="t-caption text-tertiary"
-                                        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                        onClick={() => onUpdateReceiptDate && setEditingDateId(r.id)}
+                                    <button
+                                        className="btn btn-ghost btn-sm"
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 0', color: 'var(--text-tertiary)', fontSize: 12, fontWeight: 400 }}
+                                        onClick={() => setEditingDateId(r.id)}
                                     >
+                                        <Icon name="edit" size={11} />
                                         {r.date
                                             ? (() => { try { const [y,m,d] = r.date.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return r.date; } })()
                                             : new Date(r.addedAt).toLocaleDateString()
                                         }
-                                        {onUpdateReceiptDate && <Icon name="edit" size={10} color="var(--text-tertiary)" />}
-                                    </p>
+                                    </button>
                                 )}
                             </div>
                             <div className="flex items-center gap-sm">
