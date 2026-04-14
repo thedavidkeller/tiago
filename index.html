@@ -645,19 +645,17 @@ const generateTripShareUrl = (trip) => {
         people: trip.people.map(({ id, name, color }) => ({ id, name, color })),
         receipts: trip.receipts.map(({ restaurant, total, paidBy }) => ({ restaurant, total, paidBy }))
     };
-    const json = JSON.stringify({ tv: 1, at: Date.now(), trip: slim });
-    // Hex encode: only [0-9a-f] — no special chars, guaranteed iMessage-safe
-    const encoded = Array.from(new TextEncoder().encode(json), b => b.toString(16).padStart(2, '0')).join('');
-    return window.location.href.split('#')[0] + '#tripshare' + encoded;
+    const encoded = toBase64Url(JSON.stringify({ tv: 1, at: Date.now(), trip: slim }));
+    // Use query param instead of hash fragment — iMessage includes ?params in link detection but drops #fragments
+    const base = window.location.href.split(/[#?]/)[0];
+    return base + '?t=' + encoded;
 };
 
 const parseTripShareUrl = () => {
-    const hash = window.location.hash;
-    if (!hash.startsWith('#tripshare')) return null;
-    const hex = hash.slice(10); // strip '#tripshare'
+    const encoded = new URLSearchParams(window.location.search).get('t');
+    if (!encoded) return null;
     try {
-        const bytes = new Uint8Array(hex.match(/.{2}/g).map(h => parseInt(h, 16)));
-        const data = JSON.parse(new TextDecoder().decode(bytes));
+        const data = JSON.parse(fromBase64Url(encoded));
         if (!data.tv || !data.at || !data.trip) return null;
         return data;
     } catch (e) { return null; }
