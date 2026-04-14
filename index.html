@@ -233,7 +233,15 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        @keyframes shimmer {
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%       { transform: translateX(-8px); }
+            40%       { transform: translateX(8px); }
+            60%       { transform: translateX(-5px); }
+            80%       { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.45s ease-in-out; }
+                @keyframes shimmer {
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
         }
@@ -683,6 +691,74 @@ const parseTripShareUrl = () => {
     } catch (e) { return null; }
 };
 
+// ─── CRYPTO (AES-GCM via Web Crypto API) ──────────────────────────────────
+
+const TRIP_SALT = new TextEncoder().encode('tiago-trip-salt-v1');
+
+const deriveKey = async (pin) => {
+    const raw = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: TRIP_SALT, iterations: 100000, hash: 'SHA-256' },
+        raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+    );
+};
+
+const encryptTrip = async (json, pin) => {
+    const key = await deriveKey(pin);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(json));
+    const combined = new Uint8Array(12 + enc.byteLength);
+    combined.set(iv, 0); combined.set(new Uint8Array(enc), 12);
+    return btoa(String.fromCharCode(...combined)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+};
+
+const decryptTrip = async (b64, pin) => {
+    const key = await deriveKey(pin);
+    const b64std = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64std.length % 4 ? '='.repeat(4 - b64std.length % 4) : '';
+    const combined = Uint8Array.from(atob(b64std + pad), c => c.charCodeAt(0));
+    const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: combined.slice(0, 12) }, key, combined.slice(12));
+    return new TextDecoder().decode(dec);
+};
+
+const buildTripPayload = (trip) => {
+    const slim = {
+        name: trip.name,
+        people: trip.people.map(({ id, name, color }) => ({ id, name, color })),
+        receipts: trip.receipts.map(({ restaurant, total, paidBy, date, addedAt }) => ({
+            restaurant, total, paidBy,
+            date: date || (addedAt ? new Date(addedAt).toISOString().slice(0, 10) : null)
+        }))
+    };
+    return JSON.stringify({ tv: 1, at: Date.now(), trip: slim });
+};
+
+const generateTripHashUrl = async (trip, pin) => {
+    const json = buildTripPayload(trip);
+    const base = window.location.href.split(/[#?]/)[0];
+    if (pin && pin.length === 4) {
+        const enc = await encryptTrip(json, pin);
+        return base + '#trip=' + enc + '&pin=1';
+    }
+    return base + '#trip=' + toBase64Url(json);
+};
+
+const parseTripHash = () => {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#trip=')) return null;
+    const rest = hash.slice(6);
+    const pinIdx = rest.indexOf('&pin=');
+    const hasPinFlag = pinIdx !== -1 && rest.slice(pinIdx + 5) === '1';
+    const encoded = hasPinFlag ? rest.slice(0, pinIdx) : rest;
+    if (hasPinFlag) return { needsPin: true, encoded };
+    try {
+        const data = JSON.parse(fromBase64Url(encoded));
+        if (!data.tv || !data.at || !data.trip) return null;
+        if (Date.now() - data.at > SHARE_EXPIRY_MS) return { expired: true };
+        return data;
+    } catch { return null; }
+};
+
 // ─── SVG ICONS ─────────────────────────────────────────────────────────────
 
 const Icon = ({ name, size = 18, color = 'currentColor', className = '' }) => {
@@ -710,6 +786,9 @@ const Icon = ({ name, size = 18, color = 'currentColor', className = '' }) => {
         home: <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
         copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>,
         share: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></>,
+        lock: <><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
+        shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>\</>,
+        link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>,
     };
     return (
         <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
@@ -1811,6 +1890,130 @@ const SharedBillView = ({ data }) => {
     );
 };
 
+// ─── PIN GATE ──────────────────────────────────────────────────────────────
+
+const PinGate = ({ encoded }) => {
+    const [pin, setPin] = React.useState('');
+    const [shaking, setShaking] = React.useState(false);
+    const [loading, setLoading] = React.useState(false);
+    const [tripData, setTripData] = React.useState(null);
+    const inputRef = React.useRef(null);
+
+    React.useEffect(() => { inputRef.current?.focus(); }, []);
+
+    const handleSubmit = async () => {
+        if (pin.length !== 4 || loading) return;
+        setLoading(true);
+        try {
+            const json = await decryptTrip(encoded, pin);
+            const data = JSON.parse(json);
+            if (Date.now() - data.at > SHARE_EXPIRY_MS) { setTripData({ expired: true }); return; }
+            setTripData(data);
+        } catch {
+            setLoading(false);
+            setPin('');
+            setShaking(true);
+            setTimeout(() => setShaking(false), 500);
+        }
+    };
+
+    if (tripData) return <SharedTripView data={tripData} />;
+
+    return (
+        <div className="api-gate">
+            <div className={`card p-lg fade-up${shaking ? ' shake' : ''}`} style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}>
+                <div style={{ marginBottom: 16, color: 'var(--primary)' }}>
+                    <Icon name="lock" size={28} />
+                </div>
+                <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 22, marginBottom: 6 }}>PIN protected</h2>
+                <p className="t-caption text-secondary mb-md">Enter the 4-digit PIN to view this trip</p>
+                <input
+                    ref={inputRef}
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    value={pin}
+                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                    placeholder="0000"
+                    className="input-field mb-md"
+                    style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.3em', fontFamily: 'var(--font-sans)' }}
+                />
+                <Button className="w-full" onClick={handleSubmit} disabled={pin.length !== 4 || loading}>
+                    {loading ? 'Verifying…' : 'Unlock'}
+                </Button>
+            </div>
+        </div>
+    );
+};
+
+// ─── SHARE MODAL ───────────────────────────────────────────────────────────
+
+const ShareModal = ({ trip, onClose }) => {
+    const [pin, setPin] = React.useState('');
+    const [status, setStatus] = React.useState('idle'); // idle | loading | done
+    const inputRef = React.useRef(null);
+
+    React.useEffect(() => { inputRef.current?.focus(); }, []);
+
+    const handleCopy = async () => {
+        if (status === 'loading') return;
+        setStatus('loading');
+        try {
+            const longUrl = await generateTripHashUrl(trip, pin.length === 4 ? pin : null);
+            const url = await shortenUrl(longUrl);
+            if (navigator.share) {
+                await navigator.share({ url });
+            } else {
+                await navigator.clipboard.writeText(url);
+            }
+            setStatus('done');
+            setTimeout(() => { setStatus('idle'); onClose(); }, 2000);
+        } catch (e) {
+            if (e.name !== 'AbortError') setStatus('idle');
+            else setStatus('idle');
+        }
+    };
+
+    return (
+        <div className="api-gate" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+            <div className="card p-lg fade-up" style={{ maxWidth: 380, width: '100%' }}>
+                <h2 style={{ fontFamily: 'var(--font-serif)', fontWeight: 300, fontSize: 22, marginBottom: 4 }}>Share trip</h2>
+                <p className="t-caption text-secondary mb-md">Optionally add a PIN to protect the link</p>
+
+                <label className="input-label mb-xs" style={{ display: 'block' }}>PIN (optional)</label>
+                <input
+                    ref={inputRef}
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    value={pin}
+                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    onKeyDown={e => e.key === 'Enter' && (pin.length === 0 || pin.length === 4) && handleCopy()}
+                    placeholder="Leave blank for no PIN"
+                    className="input-field mb-md"
+                    style={{ fontSize: pin.length > 0 ? 20 : 14, letterSpacing: pin.length > 0 ? '0.3em' : 'normal' }}
+                />
+                {pin.length > 0 && pin.length < 4 && (
+                    <p className="t-caption text-tertiary mb-md" style={{ marginTop: -10 }}>PIN must be exactly 4 digits</p>
+                )}
+
+                <Button
+                    className="w-full mb-sm"
+                    icon={status === 'done' ? 'check' : 'link'}
+                    onClick={handleCopy}
+                    disabled={status === 'loading' || (pin.length > 0 && pin.length < 4)}
+                >
+                    {status === 'loading' ? 'Generating…' : status === 'done' ? 'Link copied!' : 'Copy link'}
+                </Button>
+                <Button className="w-full" variant="ghost" onClick={onClose}>Cancel</Button>
+            </div>
+        </div>
+    );
+};
+
 // ─── SHARED TRIP VIEW ──────────────────────────────────────────────────────
 
 const SharedTripView = ({ data }) => {
@@ -1999,6 +2202,15 @@ const SharedTripView = ({ data }) => {
                     </div>
                 );
             })()}
+
+            <div style={{ textAlign: 'center', marginTop: 32 }}>
+                <a
+                    href={window.location.href.split(/[#?]/)[0]}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text-tertiary)', textDecoration: 'none' }}
+                >
+                    <Icon name="receipt" size={13} /> Make your own split
+                </a>
+            </div>
         </div>
     );
 };
@@ -2030,50 +2242,11 @@ const tripDaysRemaining = (createdAt) => {
 // ─── TRIP SPLIT VIEW ───────────────────────────────────────────────────────
 
 const TripSplitView = ({ trip, onBack, onUpdateReceipt }) => {
-    const [shareState, setShareState] = React.useState('idle'); // idle | loading | done | ready
-    const [shortUrl, setShortUrl] = React.useState(null);
+    const [showShareModal, setShowShareModal] = React.useState(false);
     const people = trip.people;
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const fairShare = people.length > 0 ? grandTotal / people.length : 0;
     const allAssigned = trip.receipts.length > 0 && trip.receipts.every(r => r.paidBy);
-
-    const handleShareLink = async () => {
-        if (shareState === 'loading') return;
-        setShareState('loading');
-        const url = await shortenUrl(generateTripShareUrl(trip));
-        // navigator.share works on iOS/Android even after async
-        if (navigator.share) {
-            try {
-                await navigator.share({ url });
-                setShareState('done');
-                setTimeout(() => setShareState('idle'), 3000);
-                return;
-            } catch (e) {
-                if (e.name === 'AbortError') { setShareState('idle'); return; }
-            }
-        }
-        // Desktop: clipboard write works after async in most browsers
-        try {
-            await navigator.clipboard.writeText(url);
-            setShareState('done');
-            setTimeout(() => setShareState('idle'), 3000);
-        } catch {
-            // Last resort: show URL for manual copy
-            setShortUrl(url);
-            setShareState('ready');
-        }
-    };
-
-    const handleCopy = async () => {
-        if (!shortUrl) return;
-        try {
-            await navigator.clipboard.writeText(shortUrl);
-            setShareState('done');
-            setTimeout(() => { setShareState('idle'); setShortUrl(null); }, 3000);
-        } catch {
-            setShareState('idle');
-        }
-    };
 
     // Compute per-person balances
     const balances = people.map(p => {
@@ -2119,20 +2292,10 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt }) => {
                 </p>
             </div>
 
-            {shareState === 'ready' && shortUrl ? (
-                <div className="flex gap-sm mb-md" style={{ alignItems: 'center' }}>
-                    <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-divider)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-sans)' }}>
-                        {shortUrl}
-                    </div>
-                    <Button variant="secondary" icon="copy" onClick={handleCopy} style={{ flexShrink: 0 }}>
-                        Copy
-                    </Button>
-                </div>
-            ) : (
-                <Button className="w-full mb-md" variant="secondary" icon={shareState === 'done' ? 'check' : 'share'} onClick={handleShareLink} disabled={shareState === 'loading'}>
-                    {shareState === 'loading' ? 'Creating link…' : shareState === 'done' ? 'Copied!' : 'Share trip link'}
-                </Button>
-            )}
+            {showShareModal && <ShareModal trip={trip} onClose={() => setShowShareModal(false)} />}
+            <Button className="w-full mb-md" variant="secondary" icon="share" onClick={() => setShowShareModal(true)}>
+                Share trip link
+            </Button>
 
             {/* Payer assignment per receipt */}
             <div className="card mb-md">
@@ -2512,8 +2675,9 @@ const TripsMode = ({ apiKey }) => {
 const STEPS = ['scan', 'items', 'people', 'split', 'summary'];
 
 const App = () => {
-    const [tripShareData] = React.useState(() => parseTripShareUrl());
-    const [shareData] = React.useState(() => tripShareData ? null : parseShareUrl());
+    const [hashTripData] = React.useState(() => parseTripHash());
+    const [tripShareData] = React.useState(() => hashTripData ? null : parseTripShareUrl());
+    const [shareData] = React.useState(() => (hashTripData || tripShareData) ? null : parseShareUrl());
     const [apiKey, setApiKey] = React.useState(() => localStorage.getItem('splitter-api-key') || null);
     const [showApiGate, setShowApiGate] = React.useState(() => !localStorage.getItem('splitter-api-key'));
     const [step, setStep] = React.useState('scan'); // scan → items → people → split → summary
@@ -2586,6 +2750,8 @@ const App = () => {
         summary: receipt?.restaurant || ''
     }[step] || null;
 
+    if (hashTripData?.needsPin) return <PinGate encoded={hashTripData.encoded} />;
+    if (hashTripData) return <SharedTripView data={hashTripData} />;
     if (tripShareData) return <SharedTripView data={tripShareData} />;
     if (shareData) return <SharedBillView data={shareData} />;
 
