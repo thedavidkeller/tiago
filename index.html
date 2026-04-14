@@ -2485,14 +2485,6 @@ const App = () => {
                                 style={{ height: 30, fontSize: 12, padding: '0 14px', flex: 'none' }}
                             >Trips</button>
                         </div>
-                        <button
-                            onClick={() => setShowApiGate(true)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ color: 'var(--text-tertiary)', gap: 6 }}
-                        >
-                            <Icon name="key" size={13} />
-                            <span className="hide-mobile">API key</span>
-                        </button>
                     </div>
                 </header>
 
@@ -2588,7 +2580,7 @@ const App = () => {
                 )}
             </div>
 
-            {/* Tip button - hidden on split landing page */}
+            {/* Bottom bar — tip + API key */}
             {(appMode === 'trips' || !(step === 'scan' && !receipt)) && (
                 <div style={{
                     position: 'fixed',
@@ -2598,6 +2590,8 @@ const App = () => {
                     padding: '12px 0 28px',
                     display: 'flex',
                     justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 10,
                     background: 'linear-gradient(to top, var(--bg-app) 60%, transparent)',
                     pointerEvents: 'none',
                     zIndex: 110
@@ -2626,6 +2620,31 @@ const App = () => {
                     >
                         ☕ Buy me a coffee
                     </a>
+                    {apiKey && (
+                        <button
+                            onClick={() => setShowApiGate(true)}
+                            style={{
+                                pointerEvents: 'all',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                color: 'var(--text-disabled)',
+                                fontSize: 12,
+                                padding: '8px 14px',
+                                borderRadius: 'var(--radius-full)',
+                                border: '1px solid var(--border-divider)',
+                                background: 'var(--surface-1)',
+                                transition: 'all 160ms ease',
+                                fontFamily: 'var(--font-sans)',
+                                cursor: 'pointer',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-base)'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-divider)'; e.currentTarget.style.color = 'var(--text-disabled)'; }}
+                        >
+                            <Icon name="key" size={12} />
+                            API key
+                        </button>
+                    )}
                 </div>
             )}
         </>
