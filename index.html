@@ -639,20 +639,29 @@ const parseShareUrl = () => {
 };
 
 const generateTripShareUrl = (trip) => {
-    const data = { tv: 1, at: Date.now(), trip };
-    const encoded = toBase64Url(JSON.stringify(data));
-    const charset = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    // Only encode what SharedTripView needs — keeps URL short
+    const slim = {
+        name: trip.name,
+        people: trip.people.map(({ id, name, color }) => ({ id, name, color })),
+        receipts: trip.receipts.map(({ restaurant, total, paidBy }) => ({ restaurant, total, paidBy }))
+    };
+    // base64url, then escape - and _ so the URL only contains [A-Za-z0-9-]
+    // - → -h, _ → -s (unambiguous: decode scans left-to-right consuming each -h/-s pair)
+    const b64url = toBase64Url(JSON.stringify({ tv: 1, at: Date.now(), trip: slim }));
+    const encoded = b64url.replace(/[-_]/g, c => c === '-' ? '-h' : '-s');
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789';
     const nonce = Array.from({ length: NONCE_LEN }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
-    return window.location.href.split('#')[0] + '#tripshare_' + nonce + encoded;
+    return window.location.href.split('#')[0] + '#tripshare' + nonce + encoded;
 };
 
 const parseTripShareUrl = () => {
     const hash = window.location.hash;
-    if (!hash.startsWith('#tripshare_')) return null;
-    const payload = hash.slice(11); // strip '#tripshare_'
+    if (!hash.startsWith('#tripshare')) return null;
+    const payload = hash.slice(10); // strip '#tripshare'
     const encoded = payload.slice(NONCE_LEN);
     try {
-        const data = JSON.parse(fromBase64Url(encoded));
+        const b64url = encoded.replace(/-[hs]/g, m => m === '-h' ? '-' : '_');
+        const data = JSON.parse(fromBase64Url(b64url));
         if (!data.tv || !data.at || !data.trip) return null;
         return data;
     } catch (e) { return null; }
@@ -936,7 +945,7 @@ Rules:
                             disabled={scanning || !apiKey}
                             icon={scanning ? null : 'sparkle'}
                         >
-                            {scanning ? <><Spinner size={16} />&nbsp;&nbsp;Reading receipt…</> : 'Scan with Claude AI'}
+                            {scanning ? <><Spinner size={16} />&nbsp;&nbsp;Reading receipt…</> : 'Scan Receipt'}
                         </Button>
                     </div>
                     {!apiKey && (
