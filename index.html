@@ -2134,38 +2134,10 @@ const SharedTripView = ({ data }) => {
 
             {allAssigned ? (
                 <div className="card mb-md">
-                    <div className="p-sm flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                    <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
                         <p className="input-label">Settle Up</p>
-                        {onUpdatePeople && (
-                            editingNames ? (
-                                <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--primary)', padding: '2px 6px' }} onClick={() => {
-                                    const updated = trip.people.map(p => ({ ...p, name: draftNames[p.id] ?? p.name }));
-                                    onUpdatePeople(updated);
-                                    setEditingNames(false);
-                                }}>Done</button>
-                            ) : (
-                                <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '2px 6px' }} onClick={() => {
-                                    setDraftNames(Object.fromEntries(trip.people.map(p => [p.id, p.name])));
-                                    setEditingNames(true);
-                                }}>Edit names</button>
-                            )
-                        )}
                     </div>
-                    {editingNames ? (
-                        <div className="p-sm flex flex-col gap-sm">
-                            {trip.people.map(p => (
-                                <div key={p.id} className="flex items-center gap-sm">
-                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-                                    <input
-                                        className="input-field"
-                                        value={draftNames[p.id] ?? p.name}
-                                        onChange={e => setDraftNames(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                        style={{ height: 36, fontSize: 14 }}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    ) : settlements.length === 0 ? (
+                    {settlements.length === 0 ? (
                         <div className="p-sm text-center">
                             <p className="t-caption text-secondary">Everyone's even!</p>
                         </div>
@@ -2375,9 +2347,38 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
 
             {/* Payer assignment per receipt */}
             <div className="card mb-md">
-                <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                <div className="p-sm flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-divider)' }}>
                     <p className="input-label">Who paid each receipt?</p>
+                    {onUpdatePeople && (
+                        editingNames ? (
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--primary)', padding: '2px 6px' }} onClick={() => {
+                                const updated = trip.people.map(p => ({ ...p, name: draftNames[p.id] ?? p.name }));
+                                onUpdatePeople(updated);
+                                setEditingNames(false);
+                            }}>Done</button>
+                        ) : (
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '2px 6px' }} onClick={() => {
+                                setDraftNames(Object.fromEntries(trip.people.map(p => [p.id, p.name])));
+                                setEditingNames(true);
+                            }}>Edit names</button>
+                        )
+                    )}
                 </div>
+                {editingNames && (
+                    <div className="p-sm flex flex-col gap-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                        {trip.people.map(p => (
+                            <div key={p.id} className="flex items-center gap-sm">
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                                <input
+                                    className="input-field"
+                                    value={draftNames[p.id] ?? p.name}
+                                    onChange={e => setDraftNames(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                    style={{ height: 36, fontSize: 14 }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
                 {trip.receipts.map((r, i) => (
                     <div key={r.id} className="p-sm" style={{ borderBottom: i < trip.receipts.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
                         <div className="flex items-center justify-between" style={{ gap: 12 }}>
