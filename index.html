@@ -1777,18 +1777,35 @@ const tripDaysRemaining = (createdAt) => {
 
 // ─── TRIP SPLIT VIEW ───────────────────────────────────────────────────────
 
-const TripSplitView = ({ trip, onBack }) => {
-    const [copiedId, setCopiedId] = React.useState(null);
+const TripSplitView = ({ trip, onBack, onUpdateReceipt }) => {
+    const people = trip.people;
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
-    const perPerson = trip.people.length > 0 ? grandTotal / trip.people.length : 0;
+    const fairShare = people.length > 0 ? grandTotal / people.length : 0;
+    const allAssigned = trip.receipts.length > 0 && trip.receipts.every(r => r.paidBy);
 
-    const copyAmount = async (person) => {
-        try {
-            await navigator.clipboard.writeText(perPerson.toFixed(2));
-            setCopiedId(person.id);
-            setTimeout(() => setCopiedId(null), 2000);
-        } catch {}
-    };
+    // Compute per-person balances
+    const balances = people.map(p => {
+        const paid = trip.receipts.filter(r => r.paidBy === p.id).reduce((s, r) => s + (r.total || 0), 0);
+        return { ...p, paid, balance: paid - fairShare };
+    });
+
+    // Compute minimal settlements
+    const settlements = [];
+    if (allAssigned && people.length > 0) {
+        const debtors = balances.filter(p => p.balance < -0.005).map(p => ({ ...p }));
+        const creditors = balances.filter(p => p.balance > 0.005).map(p => ({ ...p }));
+        debtors.sort((a, b) => a.balance - b.balance);
+        creditors.sort((a, b) => b.balance - a.balance);
+        let d = 0, c = 0;
+        while (d < debtors.length && c < creditors.length) {
+            const amount = Math.min(-debtors[d].balance, creditors[c].balance);
+            settlements.push({ from: debtors[d], to: creditors[c], amount });
+            debtors[d].balance += amount;
+            creditors[c].balance -= amount;
+            if (Math.abs(debtors[d].balance) < 0.005) d++;
+            if (Math.abs(creditors[c].balance) < 0.005) c++;
+        }
+    }
 
     return (
         <div className="fade-up">
@@ -1797,6 +1814,8 @@ const TripSplitView = ({ trip, onBack }) => {
                     <Icon name="arrowLeft" size={14} /> Back
                 </button>
             </div>
+
+            {/* Grand total */}
             <div className="card p-lg mb-md text-center" style={{
                 background: 'linear-gradient(135deg, rgba(212,43,43,0.07) 0%, rgba(10,10,10,0.04) 100%)',
                 borderColor: 'rgba(212,43,43,0.2)'
@@ -1804,58 +1823,100 @@ const TripSplitView = ({ trip, onBack }) => {
                 <p className="t-label text-secondary mb-sm">{trip.name}</p>
                 <p className="t-display" style={{ fontStyle: 'italic' }}>{formatCurrency(grandTotal)}</p>
                 <p className="t-caption text-tertiary mt-sm">
-                    {trip.receipts.length} receipt{trip.receipts.length !== 1 ? 's' : ''} · split equally among {trip.people.length}
+                    {trip.receipts.length} receipt{trip.receipts.length !== 1 ? 's' : ''} · {people.length} people · {formatCurrency(fairShare)} each
                 </p>
             </div>
+
+            {/* Payer assignment per receipt */}
             <div className="card mb-md">
                 <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
-                    <div className="flex items-center justify-between">
-                        <p className="input-label">Each person owes</p>
-                        <p className="t-caption text-tertiary">tap to copy</p>
-                    </div>
+                    <p className="input-label">Who paid each receipt?</p>
                 </div>
-                {trip.people.map((p, i) => {
-                    const isCopied = copiedId === p.id;
-                    return (
-                        <div key={p.id} className="p-sm" style={{ borderBottom: i < trip.people.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-sm">
-                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color }} />
-                                    <span style={{ fontWeight: 500 }}>{p.name}</span>
-                                </div>
-                                <button
-                                    onClick={() => copyAmount(p)}
-                                    style={{
-                                        background: isCopied ? p.color + '20' : 'transparent',
-                                        border: `1px solid ${isCopied ? p.color + '60' : 'transparent'}`,
-                                        borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', gap: 6,
-                                        transition: 'all 160ms ease', color: p.color
-                                    }}
-                                >
-                                    {isCopied
-                                        ? <><Icon name="check" size={13} color={p.color} /><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(perPerson)}</span></>
-                                        : <><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(perPerson)}</span><Icon name="copy" size={13} color="var(--text-tertiary)" /></>
-                                    }
-                                </button>
+                {trip.receipts.map((r, i) => (
+                    <div key={r.id} className="p-sm" style={{ borderBottom: i < trip.receipts.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                        <div className="flex items-center justify-between" style={{ gap: 12 }}>
+                            <div style={{ minWidth: 0 }}>
+                                <p style={{ fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.restaurant}</p>
+                                <p className="t-caption text-tertiary">{formatCurrency(r.total)}</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 0 }}>
+                                {people.map(p => {
+                                    const selected = r.paidBy === p.id;
+                                    return (
+                                        <button
+                                            key={p.id}
+                                            onClick={() => onUpdateReceipt(r.id, selected ? null : p.id)}
+                                            style={{
+                                                padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                                                cursor: 'pointer', transition: 'all 140ms ease',
+                                                background: selected ? p.color : 'transparent',
+                                                border: `1.5px solid ${selected ? p.color : 'var(--border-divider)'}`,
+                                                color: selected ? '#fff' : 'var(--text-secondary)'
+                                            }}
+                                        >{p.name}</button>
+                                    );
+                                })}
                             </div>
                         </div>
-                    );
-                })}
-            </div>
-            <div className="card p-sm" style={{ background: 'var(--surface-2)' }}>
-                <p className="input-label mb-sm">Receipts included</p>
-                {trip.receipts.map((r) => (
-                    <div key={r.id} className="flex justify-between t-caption text-secondary py-1">
-                        <span>{r.restaurant}</span>
-                        <span>{formatCurrency(r.total)}</span>
                     </div>
                 ))}
-                <div className="divider mt-sm mb-sm" />
-                <div className="flex justify-between t-body" style={{ fontWeight: 700 }}>
-                    <span>Total</span><span>{formatCurrency(grandTotal)}</span>
-                </div>
             </div>
+
+            {/* Settlements */}
+            {allAssigned ? (
+                <div className="card mb-md">
+                    <div className="p-sm" style={{ borderBottom: '1px solid var(--border-divider)' }}>
+                        <p className="input-label">Settlements</p>
+                    </div>
+                    {settlements.length === 0 ? (
+                        <div className="p-sm text-center">
+                            <p className="t-caption text-secondary">Everyone's even!</p>
+                        </div>
+                    ) : settlements.map((s, i) => (
+                        <div key={i} className="p-sm" style={{ borderBottom: i < settlements.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-sm" style={{ flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.from.color }} />
+                                        <span style={{ fontWeight: 500 }}>{s.from.name}</span>
+                                    </div>
+                                    <span className="t-caption text-tertiary">pays</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.to.color }} />
+                                        <span style={{ fontWeight: 500 }}>{s.to.name}</span>
+                                    </div>
+                                </div>
+                                <span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(s.amount)}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="card p-md mb-md text-center" style={{ borderStyle: 'dashed' }}>
+                    <p className="t-caption text-secondary">Assign a payer to each receipt to see settlements</p>
+                </div>
+            )}
+
+            {/* Balance breakdown */}
+            {allAssigned && (
+                <div className="card p-sm" style={{ background: 'var(--surface-2)' }}>
+                    <p className="input-label mb-sm">Balance breakdown</p>
+                    {balances.map((p, i) => (
+                        <div key={p.id} className="flex items-center justify-between t-caption py-1" style={{ borderBottom: i < balances.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
+                            <div className="flex items-center gap-xs">
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
+                                <span>{p.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 16 }}>
+                                <span className="text-tertiary">paid {formatCurrency(p.paid)}</span>
+                                <span style={{ fontWeight: 600, minWidth: 60, textAlign: 'right', color: p.balance > 0.005 ? 'var(--primary)' : p.balance < -0.005 ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>
+                                    {p.balance > 0.005 ? `+${formatCurrency(p.balance)}` : formatCurrency(p.balance)}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
@@ -1970,10 +2031,18 @@ const TripsMode = ({ apiKey }) => {
                 items: receipt.items || [],
                 subtotal: receipt.subtotal || 0,
                 tax: receipt.tax || 0,
-                tip: receipt.tip || 0
+                tip: receipt.tip || 0,
+                paidBy: null
             }]
         }));
         nav('detail');
+    };
+
+    const handleUpdateReceiptPayer = (receiptId, personId) => {
+        updateTrip(selectedId, t => ({
+            ...t,
+            receipts: t.receipts.map(r => r.id === receiptId ? { ...r, paidBy: personId } : r)
+        }));
     };
 
     const handlePeopleComplete = (people) => {
@@ -2123,7 +2192,7 @@ const TripsMode = ({ apiKey }) => {
 
             {/* ── TRIP SPLIT ── */}
             {view === 'split' && selectedTrip && (
-                <TripSplitView trip={selectedTrip} onBack={() => nav('detail')} />
+                <TripSplitView trip={selectedTrip} onBack={() => nav('detail')} onUpdateReceipt={handleUpdateReceiptPayer} />
             )}
 
         </div>
