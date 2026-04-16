@@ -2573,7 +2573,7 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                             </div>
                             <div className="flex items-center gap-sm">
                                 <span style={{ fontWeight: 600 }}>{formatCurrency(r.total)}</span>
-                                <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)' }} onClick={() => onDeleteReceipt(r.id)}>
+                                <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)' }} onClick={() => { if (window.confirm('Delete this receipt?')) onDeleteReceipt(r.id); }}>
                                     <Icon name="trash" size={14} />
                                 </button>
                             </div>
@@ -2632,6 +2632,7 @@ const TripsMode = ({ apiKey }) => {
     };
 
     const handleDeleteTrip = (id) => {
+        if (!window.confirm('Delete this trip? This cannot be undone.')) return;
         const next = trips.filter(t => t.id !== id);
         setTrips(next);
         saveTrips(next);
@@ -2686,7 +2687,7 @@ const TripsMode = ({ apiKey }) => {
                         <div className="card p-lg text-center" style={{ borderStyle: 'dashed' }}>
                             <div style={{ fontSize: 36, marginBottom: 12 }}>✈️</div>
                             <p className="t-body" style={{ fontWeight: 500 }}>No trips yet</p>
-                            <p className="t-caption text-secondary mt-xs mb-md">Save receipts across multiple meals — split everything at the end</p>
+                            <p className="t-caption text-secondary mt-xs mb-md">Save receipts across multiple bills — split everything in the end</p>
                             <Button icon="plus" onClick={() => nav('create')}>Create your first trip</Button>
                         </div>
                     ) : (
