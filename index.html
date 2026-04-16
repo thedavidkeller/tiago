@@ -1243,7 +1243,8 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                                 <input
                                     className="input-field"
                                     value={person.name}
-                                    onChange={e => setPeople(prev => prev.map((p, j) => j === 0 ? { ...p, name: e.target.value || 'You' } : p))}
+                                    onChange={e => setPeople(prev => prev.map((p, j) => j === 0 ? { ...p, name: e.target.value } : p))}
+                                    onBlur={e => { if (!e.target.value.trim()) setPeople(prev => prev.map((p, j) => j === 0 ? { ...p, name: 'You' } : p)); }}
                                     placeholder="Your name"
                                     style={{ height: 28, fontSize: 14, fontWeight: 500, padding: '0 8px', border: 'none', background: 'transparent', outline: 'none', flex: 1, minWidth: 0 }}
                                 />
@@ -1588,10 +1589,11 @@ const Summary = ({ result, onNew, onBack }) => {
     };
 
     const personById = Object.fromEntries(people.map(p => [p.id, p]));
-    // Sort by amount descending, but always put "You" last
+    // Sort by amount descending, but always put the first person ("you") last
+    const youId = people[0]?.id;
     const sorted = [...people].sort((a, b) => {
-        if (a.name === 'You') return 1;
-        if (b.name === 'You') return -1;
+        if (a.id === youId) return 1;
+        if (b.id === youId) return -1;
         return (shares[b.id] || 0) - (shares[a.id] || 0);
     });
 
