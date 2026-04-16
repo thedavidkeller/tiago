@@ -1578,14 +1578,24 @@ const Summary = ({ result, onNew, onBack }) => {
     const [copied, setCopied] = React.useState(false);
     const [copiedPerson, setCopiedPerson] = React.useState(null);
     const [shareLinkCopied, setShareLinkCopied] = React.useState(false);
+    const [shareLoading, setShareLoading] = React.useState(false);
 
     const handleShareLink = async () => {
-        const url = generateShareUrl(receipt, people);
+        if (shareLoading) return;
+        setShareLoading(true);
         try {
-            await navigator.clipboard.writeText(url);
-            setShareLinkCopied(true);
-            setTimeout(() => setShareLinkCopied(false), 3000);
-        } catch {}
+            const long = generateShareUrl(receipt, people);
+            const url = await shortenUrl(long);
+            if (navigator.share) {
+                try { await navigator.share({ url }); } catch (_) {}
+            } else {
+                await navigator.clipboard.writeText(url).catch(() => {});
+                setShareLinkCopied(true);
+                setTimeout(() => setShareLinkCopied(false), 3000);
+            }
+        } finally {
+            setShareLoading(false);
+        }
     };
 
     const personById = Object.fromEntries(people.map(p => [p.id, p]));
@@ -1730,8 +1740,8 @@ const Summary = ({ result, onNew, onBack }) => {
                 <Button className="flex-1" variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copyToClipboard}>
                     {copied ? 'Copied!' : 'Copy summary'}
                 </Button>
-                <Button className="flex-1" variant="secondary" icon={shareLinkCopied ? 'check' : 'share'} onClick={handleShareLink}>
-                    {shareLinkCopied ? 'Link copied!' : 'Share link'}
+                <Button className="flex-1" variant="secondary" icon={shareLinkCopied ? 'check' : shareLoading ? null : 'share'} onClick={handleShareLink} disabled={shareLoading}>
+                    {shareLinkCopied ? 'Link copied!' : shareLoading ? <><Spinner size={16} />&nbsp;&nbsp;Shortening…</> : 'Share link'}
                 </Button>
             </div>
             {shareLinkCopied && (
