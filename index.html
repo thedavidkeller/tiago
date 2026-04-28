@@ -2555,9 +2555,36 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
 
 // ─── TRIP DETAIL ───────────────────────────────────────────────────────────
 
-const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDeleteReceipt, onUpdateReceiptDate }) => {
+const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDeleteReceipt, onUpdateReceiptDate, onUpdatePeople }) => {
     const [editingDateId, setEditingDateId] = React.useState(null);
+    const [addingPerson, setAddingPerson] = React.useState(false);
+    const [newPersonName, setNewPersonName] = React.useState('');
+    const [pendingRemoveId, setPendingRemoveId] = React.useState(null);
+    const [editingYouId, setEditingYouId] = React.useState(null);
+    const [youDraftName, setYouDraftName] = React.useState('');
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
+    const people = trip.people || [];
+
+    const addPerson = () => {
+        if (!newPersonName.trim()) return;
+        const othersCount = people.filter(p => p.color !== YOU_COLOR).length;
+        const newPerson = { id: genId(), name: newPersonName.trim(), color: PERSON_COLORS[othersCount % PERSON_COLORS.length] };
+        onUpdatePeople([...people, newPerson]);
+        setNewPersonName('');
+        setAddingPerson(false);
+    };
+
+    const removePerson = (id) => {
+        onUpdatePeople(people.filter(p => p.id !== id));
+        setPendingRemoveId(null);
+    };
+
+    const saveYouName = (id) => {
+        const trimmed = youDraftName.trim();
+        onUpdatePeople(people.map(p => p.id === id ? { ...p, name: trimmed || 'You' } : p));
+        setEditingYouId(null);
+    };
+
     return (
         <div className="fade-up">
             <div className="mb-md">
@@ -2618,6 +2645,84 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                     ))}
                 </div>
             )}
+
+            {/* ── PEOPLE SECTION ── */}
+            <div className="mb-md">
+                <p className="t-caption text-tertiary mb-xs" style={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: 10 }}>People</p>
+                {people.length === 0 && !addingPerson && (
+                    <p className="t-caption text-tertiary mb-xs">Add people to split with.</p>
+                )}
+                {people.length > 0 && (
+                    <div className="flex flex-wrap gap-xs mb-xs">
+                        {people.map((p) => {
+                            const isYou = p.color === YOU_COLOR;
+                            const isPending = pendingRemoveId === p.id;
+                            if (isPending) {
+                                return (
+                                    <div key={p.id} className="flex items-center gap-xs" style={{ background: 'var(--surface-3)', borderRadius: 'var(--radius-full)', padding: '4px 10px', fontSize: 12 }}>
+                                        <span style={{ color: 'var(--text-secondary)' }}>This will affect your split, continue?</span>
+                                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)', padding: '0 4px', fontSize: 12, height: 'auto', minHeight: 'unset' }} onClick={() => removePerson(p.id)}>Yes</button>
+                                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-tertiary)', padding: '0 4px', fontSize: 12, height: 'auto', minHeight: 'unset' }} onClick={() => setPendingRemoveId(null)}>No</button>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <div key={p.id} className="flex items-center gap-xs" style={{ background: 'var(--surface-3)', borderRadius: 'var(--radius-full)', padding: '4px 6px 4px 10px' }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                                    {isYou && editingYouId === p.id ? (
+                                        <input
+                                            autoFocus
+                                            value={youDraftName}
+                                            onChange={e => setYouDraftName(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') saveYouName(p.id); if (e.key === 'Escape') setEditingYouId(null); }}
+                                            onBlur={() => saveYouName(p.id)}
+                                            style={{ fontSize: 13, fontWeight: 500, background: 'transparent', border: 'none', outline: 'none', width: Math.max(youDraftName.length, 3) + 'ch' }}
+                                        />
+                                    ) : (
+                                        <span style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</span>
+                                    )}
+                                    <button
+                                        className="btn btn-ghost btn-icon"
+                                        style={{ color: 'var(--text-tertiary)', width: 18, height: 18, padding: 0, minWidth: 0, minHeight: 'unset' }}
+                                        onClick={() => {
+                                            if (isYou) { setEditingYouId(p.id); setYouDraftName(p.name); }
+                                            else {
+                                                const hasReceipts = trip.receipts.some(r => r.paidBy === p.id);
+                                                if (hasReceipts) setPendingRemoveId(p.id);
+                                                else removePerson(p.id);
+                                            }
+                                        }}
+                                    >
+                                        <Icon name={isYou ? 'edit' : 'x'} size={10} />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+                {addingPerson ? (
+                    <div className="flex gap-xs items-center mt-xs">
+                        <input
+                            className="input-field"
+                            placeholder="Name"
+                            value={newPersonName}
+                            onChange={e => setNewPersonName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') addPerson(); if (e.key === 'Escape') { setAddingPerson(false); setNewPersonName(''); } }}
+                            autoFocus
+                            style={{ height: 36, fontSize: 14, flex: 1 }}
+                        />
+                        <Button size="sm" onClick={addPerson} disabled={!newPersonName.trim()}>Add</Button>
+                        <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)' }} onClick={() => { setAddingPerson(false); setNewPersonName(''); }}>
+                            <Icon name="x" size={14} />
+                        </button>
+                    </div>
+                ) : (
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-secondary)', paddingLeft: 0, fontSize: 13 }} onClick={() => setAddingPerson(true)}>
+                        <Icon name="plus" size={12} /> Add person
+                    </button>
+                )}
+            </div>
+
             <div className="flex gap-sm">
                 <Button variant="secondary" className="flex-1" icon="plus" onClick={onAddReceipt}>Add receipt</Button>
                 <Button
@@ -2803,6 +2908,7 @@ const TripsMode = ({ apiKey }) => {
                     onSetupPeople={() => nav('people')}
                     onDeleteReceipt={receiptId => updateTrip(selectedId, t => ({ ...t, receipts: t.receipts.filter(r => r.id !== receiptId) }))}
                     onUpdateReceiptDate={(receiptId, date) => updateTrip(selectedId, t => ({ ...t, receipts: t.receipts.map(r => r.id === receiptId ? { ...r, date } : r) }))}
+                    onUpdatePeople={people => updateTrip(selectedId, t => ({ ...t, people }))}
                 />
             )}
 
