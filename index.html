@@ -1210,17 +1210,25 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
         { id: genId(), name: 'You', color: YOU_COLOR }
     ]);
     const [newName, setNewName] = React.useState('');
+    const [pendingVenmoId, setPendingVenmoId] = React.useState(null);
+    const [venmoInput, setVenmoInput] = React.useState('');
 
     const addPerson = () => {
         if (!newName.trim()) return;
         // Count non-You people to pick next color
         const othersCount = people.length - 1;
-        setPeople(prev => [...prev, {
-            id: genId(),
-            name: newName.trim(),
-            color: PERSON_COLORS[othersCount % PERSON_COLORS.length]
-        }]);
+        const newPerson = { id: genId(), name: newName.trim(), color: PERSON_COLORS[othersCount % PERSON_COLORS.length] };
+        setPeople(prev => [...prev, newPerson]);
         setNewName('');
+        setPendingVenmoId(newPerson.id);
+        setVenmoInput('');
+    };
+
+    const saveVenmo = (personId, val) => {
+        const cleaned = val.trim().replace(/^@/, '');
+        if (cleaned) setPeople(prev => prev.map(p => p.id === personId ? { ...p, venmo: cleaned } : p));
+        setPendingVenmoId(null);
+        setVenmoInput('');
     };
 
     const removePerson = (id) => {
@@ -1236,28 +1244,44 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
 
             <div className="flex flex-col gap-sm mb-md" style={{ width: '100%' }}>
                 {people.map((person, i) => (
-                    <div key={person.id} className="card p-sm flex items-center justify-between fade-up" style={{ animationDelay: `${i * 40}ms`, minWidth: 0, overflow: 'hidden' }}>
-                        <div className="flex items-center gap-sm" style={{ minWidth: 0, overflow: 'hidden', flex: 1 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: person.color, flexShrink: 0 }} />
-                            {i === 0 ? (
-                                <input
-                                    className="input-field"
-                                    value={person.name}
-                                    onChange={e => setPeople(prev => prev.map((p, j) => j === 0 ? { ...p, name: e.target.value } : p))}
-                                    onBlur={e => { if (!e.target.value.trim()) setPeople(prev => prev.map((p, j) => j === 0 ? { ...p, name: 'You' } : p)); }}
-                                    placeholder="Your name"
-                                    style={{ height: 28, fontSize: 14, fontWeight: 500, padding: '0 8px', border: 'none', background: 'transparent', outline: 'none', flex: 1, minWidth: 0 }}
-                                />
-                            ) : (
-                                <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</span>
+                    <React.Fragment key={person.id}>
+                        <div className="card p-sm flex items-center justify-between fade-up" style={{ animationDelay: `${i * 40}ms`, minWidth: 0, overflow: 'hidden' }}>
+                            <div className="flex items-center gap-sm" style={{ minWidth: 0, overflow: 'hidden', flex: 1 }}>
+                                <div style={{ width: 10, height: 10, borderRadius: '50%', background: person.color, flexShrink: 0 }} />
+                                {i === 0 ? (
+                                    <input
+                                        className="input-field"
+                                        value={person.name}
+                                        onChange={e => setPeople(prev => prev.map((p, j) => j === 0 ? { ...p, name: e.target.value } : p))}
+                                        onBlur={e => { if (!e.target.value.trim()) setPeople(prev => prev.map((p, j) => j === 0 ? { ...p, name: 'You' } : p)); }}
+                                        placeholder="Your name"
+                                        style={{ height: 28, fontSize: 14, fontWeight: 500, padding: '0 8px', border: 'none', background: 'transparent', outline: 'none', flex: 1, minWidth: 0 }}
+                                    />
+                                ) : (
+                                    <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</span>
+                                )}
+                            </div>
+                            {i !== 0 && (
+                                <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} onClick={() => removePerson(person.id)}>
+                                    <Icon name="x" size={14} />
+                                </button>
                             )}
                         </div>
-                        {i !== 0 && (
-                            <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} onClick={() => removePerson(person.id)}>
-                                <Icon name="x" size={14} />
-                            </button>
+                        {pendingVenmoId === person.id && (
+                            <div className="fade-up" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 14 }}>
+                                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>Venmo</span>
+                                <input
+                                    autoFocus
+                                    placeholder="@username (optional)"
+                                    value={venmoInput}
+                                    onChange={e => setVenmoInput(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') saveVenmo(person.id, venmoInput); if (e.key === 'Escape') { setPendingVenmoId(null); setVenmoInput(''); } }}
+                                    onBlur={() => saveVenmo(person.id, venmoInput)}
+                                    style={{ flex: 1, height: 30, fontSize: 12, padding: '0 10px', background: 'var(--surface-2)', border: '1px solid var(--border-divider)', borderRadius: 8, color: 'var(--text-secondary)', outline: 'none' }}
+                                />
+                            </div>
                         )}
-                    </div>
+                    </React.Fragment>
                 ))}
             </div>
 
@@ -1573,7 +1597,7 @@ const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange })
 
 // ─── SUMMARY ───────────────────────────────────────────────────────────────
 
-const Summary = ({ result, onNew, onBack }) => {
+const Summary = ({ result, onNew, onBack, onEditPeople }) => {
     const { people, shares, receipt, splitMode } = result;
     const [copied, setCopied] = React.useState(false);
     const [copiedPerson, setCopiedPerson] = React.useState(null);
@@ -1627,6 +1651,16 @@ const Summary = ({ result, onNew, onBack }) => {
         } catch {}
     };
 
+    const openVenmo = (handle, amount, note) => {
+        gtag('event', 'venmo_deep_link');
+        const amtStr = amount.toFixed(2);
+        const deep = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amtStr}&note=${encodeURIComponent(note)}`;
+        const web = `https://venmo.com/u/${handle}?txn=pay&amount=${amtStr}&note=${encodeURIComponent(note)}`;
+        const start = Date.now();
+        window.location = deep;
+        setTimeout(() => { if (Date.now() - start < 1500) window.open(web, '_blank'); }, 1000);
+    };
+
     const maxShare = Math.max(...Object.values(shares));
 
     return (
@@ -1670,27 +1704,53 @@ const Summary = ({ result, onNew, onBack }) => {
                                 <div className="flex items-center gap-sm">
                                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
                                     <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{p.name}</span>
+                                    {!p.venmo && onEditPeople && (
+                                        <button onClick={onEditPeople} style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>
+                                            + add venmo
+                                        </button>
+                                    )}
                                 </div>
-                                <button
-                                    onClick={() => copyAmountForVenmo(p, amount)}
-                                    style={{
-                                        background: isCopied ? p.color + '20' : 'transparent',
-                                        border: `1px solid ${isCopied ? p.color + '60' : 'transparent'}`,
-                                        borderRadius: 8,
-                                        padding: '6px 10px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 6,
-                                        transition: 'all 160ms ease',
-                                        color: p.color
-                                    }}
-                                >
-                                    {isCopied
-                                        ? <><Icon name="check" size={13} color={p.color} /><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(amount)}</span></>
-                                        : <><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(amount)}</span><Icon name="copy" size={13} color="var(--text-tertiary)" /></>
-                                    }
-                                </button>
+                                {p.venmo ? (
+                                    <button
+                                        onClick={() => openVenmo(p.venmo, amount, receipt.restaurant)}
+                                        style={{
+                                            background: 'rgba(61,149,206,0.08)',
+                                            border: '1px solid rgba(61,149,206,0.25)',
+                                            borderRadius: 8,
+                                            padding: '6px 10px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            transition: 'all 160ms ease',
+                                            color: '#3D95CE'
+                                        }}
+                                    >
+                                        <span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(amount)}</span>
+                                        <span style={{ fontSize: 11, fontWeight: 500 }}>Pay on Venmo ↗</span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => copyAmountForVenmo(p, amount)}
+                                        style={{
+                                            background: isCopied ? p.color + '20' : 'transparent',
+                                            border: `1px solid ${isCopied ? p.color + '60' : 'transparent'}`,
+                                            borderRadius: 8,
+                                            padding: '6px 10px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            transition: 'all 160ms ease',
+                                            color: p.color
+                                        }}
+                                    >
+                                        {isCopied
+                                            ? <><Icon name="check" size={13} color={p.color} /><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(amount)}</span></>
+                                            : <><span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(amount)}</span><Icon name="copy" size={13} color="var(--text-tertiary)" /></>
+                                        }
+                                    </button>
+                                )}
                             </div>
                             <div style={{ height: 3, background: 'var(--surface-3)', borderRadius: 2, overflow: 'hidden' }}>
                                 <div style={{
@@ -2333,6 +2393,16 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
     const [editingNames, setEditingNames] = React.useState(false);
     const [draftNames, setDraftNames] = React.useState({});
     const people = trip.people;
+
+    const openVenmo = (handle, amount, note) => {
+        gtag('event', 'venmo_deep_link');
+        const amtStr = amount.toFixed(2);
+        const deep = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amtStr}&note=${encodeURIComponent(note)}`;
+        const web = `https://venmo.com/u/${handle}?txn=pay&amount=${amtStr}&note=${encodeURIComponent(note)}`;
+        const start = Date.now();
+        window.location = deep;
+        setTimeout(() => { if (Date.now() - start < 1500) window.open(web, '_blank'); }, 1000);
+    };
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const fairShare = people.length > 0 ? grandTotal / people.length : 0;
     const allAssigned = trip.receipts.length > 0 && trip.receipts.every(r => r.paidBy);
@@ -2518,7 +2588,27 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
                                         <span style={{ fontWeight: 500 }}>{s.to.name}</span>
                                     </div>
                                 </div>
-                                <span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(s.amount)}</span>
+                                {s.to.venmo ? (
+                                    <button
+                                        onClick={() => openVenmo(s.to.venmo, s.amount, trip.name)}
+                                        style={{
+                                            background: 'rgba(61,149,206,0.08)',
+                                            border: '1px solid rgba(61,149,206,0.25)',
+                                            borderRadius: 8,
+                                            padding: '6px 10px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            color: '#3D95CE'
+                                        }}
+                                    >
+                                        <span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(s.amount)}</span>
+                                        <span style={{ fontSize: 11, fontWeight: 500 }}>Pay on Venmo ↗</span>
+                                    </button>
+                                ) : (
+                                    <span style={{ fontWeight: 700, fontSize: 18 }}>{formatCurrency(s.amount)}</span>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -2562,6 +2652,8 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
     const [pendingRemoveId, setPendingRemoveId] = React.useState(null);
     const [editingYouId, setEditingYouId] = React.useState(null);
     const [youDraftName, setYouDraftName] = React.useState('');
+    const [pendingVenmoId, setPendingVenmoId] = React.useState(null);
+    const [venmoInput, setVenmoInput] = React.useState('');
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const people = trip.people || [];
 
@@ -2572,6 +2664,15 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
         onUpdatePeople([...people, newPerson]);
         setNewPersonName('');
         setAddingPerson(false);
+        setPendingVenmoId(newPerson.id);
+        setVenmoInput('');
+    };
+
+    const saveTripVenmo = (personId, val) => {
+        const cleaned = val.trim().replace(/^@/, '');
+        if (cleaned) onUpdatePeople(people.map(p => p.id === personId ? { ...p, venmo: cleaned } : p));
+        setPendingVenmoId(null);
+        setVenmoInput('');
     };
 
     const removePerson = (id) => {
@@ -2717,9 +2818,25 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                         </button>
                     </div>
                 ) : (
-                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-secondary)', paddingLeft: 0, fontSize: 13 }} onClick={() => setAddingPerson(true)}>
+                    <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-secondary)', paddingLeft: 0, fontSize: 13 }} onClick={() => { setAddingPerson(true); setPendingVenmoId(null); }}>
                         <Icon name="plus" size={12} /> Add person
                     </button>
+                )}
+                {pendingVenmoId && (
+                    <div className="flex gap-xs items-center mt-xs fade-up">
+                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>Venmo</span>
+                        <input
+                            autoFocus
+                            className="input-field"
+                            placeholder="@username (optional)"
+                            value={venmoInput}
+                            onChange={e => setVenmoInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveTripVenmo(pendingVenmoId, venmoInput); if (e.key === 'Escape') { setPendingVenmoId(null); setVenmoInput(''); } }}
+                            onBlur={() => saveTripVenmo(pendingVenmoId, venmoInput)}
+                            style={{ height: 32, fontSize: 13, flex: 1 }}
+                        />
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-tertiary)', fontSize: 12 }} onClick={() => { setPendingVenmoId(null); setVenmoInput(''); }}>Skip</button>
+                    </div>
                 )}
             </div>
 
@@ -3170,7 +3287,7 @@ const App = () => {
                         />
                     )}
                     {step === 'summary' && result && (
-                        <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} />
+                        <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} onEditPeople={() => navigate('people')} />
                     )}
                 </div>
                 )}
