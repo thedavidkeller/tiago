@@ -9,6 +9,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,700;1,9..144,300;1,9..144,400;1,9..144,700&display=swap" rel="stylesheet">
     
+    <!-- Vercel Web Analytics: anonymous page views only, no custom events, no cookies.
+         Share links carry trip data in the query string and hash, so both are stripped
+         before anything is sent. The script is served same-origin by Vercel. -->
+    <script>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+        window.va('beforeSend', function (event) {
+            var url = new URL(event.url);
+            url.search = '';
+            url.hash = '';
+            return Object.assign({}, event, { url: url.href });
+        });
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+
     <!-- Pinned to exact versions with Subresource Integrity. To upgrade, change the
          version AND recompute the hash:
          curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
