@@ -520,6 +520,19 @@
         }
 
         /* API key gate overlay */
+        .byok-pill {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 9px;
+            line-height: 1;
+            letter-spacing: 0.08em;
+            color: var(--text-tertiary);
+            border: 1px solid var(--border-hover);
+            border-radius: var(--radius-xs);
+            padding: 3px 5px 2px;
+            white-space: nowrap;
+            user-select: none;
+        }
+
         .api-gate {
             position: fixed;
             inset: 0;
@@ -1055,8 +1068,11 @@ const Checkbox = ({ checked, onChange, label }) => (
 
 // ─── API KEY GATE ──────────────────────────────────────────────────────────
 
-const ApiKeyGate = ({ onSave, onDismiss }) => {
+const ApiKeyGate = ({ onSave, onDismiss, provider = 'anthropic' }) => {
     const [key, setKey] = React.useState('');
+    const p = OCR_PROVIDERS[provider];
+    const trimmed = key.trim();
+    const valid = trimmed.startsWith(p.keyPrefix);
     return (
         <div className="api-gate">
             <div className="card p-lg fade-up" style={{ maxWidth: 480, width: '100%' }}>
@@ -1070,30 +1086,32 @@ const ApiKeyGate = ({ onSave, onDismiss }) => {
                         <Icon name="key" size={22} color="var(--primary)" />
                     </div>
                     <div>
-                        <h2 className="t-title">Connect to Claude</h2>
-                        <p className="t-caption text-secondary mt-1">For AI-powered receipt scanning</p>
+                        <h2 className="t-title">Bring your own key</h2>
+                        <p className="t-caption text-secondary mt-1">Your key, your data, your control</p>
                     </div>
                 </div>
                 <p className="t-body text-secondary mb-md">
-                The splitter uses Claude's vision to read receipts and extract line items automatically.
-                    Your key is kept only for this browser tab session and is sent only to Anthropic.<br/><br/>Enter your own Anthropic API key to utilize the AI features.
+                    Tiago never touches a server. Your {p.label} key powers receipt scanning directly from your browser — nothing is stored or transmitted anywhere else.
                 </p>
                 <Input
-                    label="Anthropic API Key"
+                    label={`${p.label} API Key`}
                     type="password"
-                    placeholder="sk-ant-..."
+                    placeholder={`${p.keyPrefix}...`}
                     value={key}
                     onChange={e => setKey(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && key.startsWith('sk-') && onSave(key)}
+                    onKeyDown={e => e.key === 'Enter' && valid && onSave(trimmed)}
                 />
+                <p className="t-caption text-tertiary" style={{ marginTop: 6 }}>
+                    You control usage and cost — nothing routes through us.
+                </p>
                 <div className="mt-md flex gap-sm">
                     <Button
                         className="flex-1"
-                        onClick={() => onSave(key)}
-                        disabled={!key.startsWith('sk-')}
+                        onClick={() => onSave(trimmed)}
+                        disabled={!valid}
                         icon="sparkle"
                     >
-                        Activate OCR
+                        Connect my key
                     </Button>
                     <Button variant="ghost" onClick={() => onSave(null)}>
                         Split manually
@@ -3415,10 +3433,11 @@ const App = () => {
                             <img src={LOGO_IMG_SRC} alt="" style={{ width: 96, height: 96, borderRadius: 0 }} />
                         </h1>
                     </div>
-                    <div style={{ textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px 8px', flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-tertiary)', fontSize: 20, fontWeight: 300, letterSpacing: '-0.01em' }}>
                             / the splitter
                         </span>
+                        <span className="byok-pill" title="Bring your own key: scans use your own API key, straight from your browser">BYOK</span>
                     </div>
                     <div className="flex items-center gap-sm">
                         <div className="tab-bar" style={{ padding: 3 }}>
