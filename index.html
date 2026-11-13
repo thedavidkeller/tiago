@@ -520,6 +520,53 @@
         }
 
         /* API key gate overlay */
+        .name-edit-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: none;
+            border: none;
+            padding: 0;
+            font: inherit;
+            cursor: pointer;
+            max-width: 100%;
+        }
+        .name-edit-label {
+            border-bottom: 1px dotted currentColor;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .name-edit-input {
+            font-size: 16px; /* 16px keeps iOS from zooming on focus */
+            font-family: inherit;
+            font-weight: 500;
+            color: var(--text-primary);
+            background: var(--surface-2);
+            border: 1px solid var(--border-focus);
+            border-radius: var(--radius-xs);
+            padding: 2px 6px;
+            outline: none;
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .stepper-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            background: var(--surface-2);
+            border: 1px solid var(--border-base);
+            color: var(--primary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 140ms ease, border-color 140ms ease;
+        }
+        .stepper-btn:hover:not(:disabled) { background: var(--primary-ghost-bg); border-color: var(--border-focus); }
+        .stepper-btn:disabled { color: var(--text-disabled); cursor: default; }
+
         .byok-pill {
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             font-size: 9px;
@@ -1066,6 +1113,71 @@ const Checkbox = ({ checked, onChange, label }) => (
     </div>
 );
 
+// ─── PEOPLE HELPERS ────────────────────────────────────────────────────────
+
+const MIN_PEOPLE = 1;
+const MAX_HEADCOUNT = 15;
+
+// Applies { name?, venmo? } to a person. Giving a name clears isPlaceholder.
+const applyPersonPatch = (person, patch) => {
+    const next = { ...person, ...patch };
+    if ('name' in patch) delete next.isPlaceholder;
+    return next;
+};
+
+// Builds a people list of `count` (including "You", who is always first).
+// Existing people are kept in order with their ids, names and Venmo handles,
+// so going back and forth never loses names or split assignments.
+const peopleFromCount = (existing, count) => {
+    const you = existing?.[0] || { id: genId(), name: 'You', color: YOU_COLOR };
+    const others = (existing || []).slice(1, count);
+    for (let i = others.length; i < count - 1; i++) {
+        others.push({ id: genId(), name: `Person ${i + 1}`, color: PERSON_COLORS[i % PERSON_COLORS.length], isPlaceholder: true });
+    }
+    return [you, ...others];
+};
+
+// A person's name. For placeholder people ("Person 1"), it is tappable and turns
+// into an input; Enter or blur saves, Escape cancels.
+const EditableName = ({ person, onRename, style }) => {
+    const [editing, setEditing] = React.useState(false);
+    const [draft, setDraft] = React.useState('');
+    if (!person.isPlaceholder || !onRename) return <span style={style}>{person.name}</span>;
+    const save = () => {
+        const v = cleanStr(draft, 40);
+        if (v && v !== person.name) onRename(person.id, v);
+        setEditing(false);
+    };
+    if (editing) {
+        return (
+            <input
+                autoFocus
+                value={draft}
+                placeholder={person.name}
+                aria-label={`Name for ${person.name}`}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+                onBlur={save}
+                onClick={e => e.stopPropagation()}
+                className="name-edit-input"
+                style={{ width: Math.max(draft.length, person.name.length, 6) + 2 + 'ch' }}
+            />
+        );
+    }
+    return (
+        <button
+            type="button"
+            className="name-edit-btn"
+            title="Tap to add a name"
+            onClick={e => { e.stopPropagation(); setDraft(''); setEditing(true); }}
+            style={{ ...style, color: 'var(--text-tertiary)' }}
+        >
+            <span className="name-edit-label">{person.name}</span>
+            <Icon name="edit" size={10} />
+        </button>
+    );
+};
+
 // ─── API KEY GATE ──────────────────────────────────────────────────────────
 
 const ApiKeyGate = ({ onSave, onDismiss, provider = 'anthropic' }) => {
@@ -1479,6 +1591,11 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
     const [people, setPeople] = React.useState(initialPeople || [
         { id: genId(), name: 'You', color: YOU_COLOR }
     ]);
+    // 'names' = add people one by one; 'count' = just pick a headcount.
+    // Coming back with placeholders already set up reopens in count mode.
+    const startsWithPlaceholders = !!initialPeople?.some(p => p.isPlaceholder);
+    const [mode, setMode] = React.useState(startsWithPlaceholders ? 'count' : 'names');
+    const [count, setCount] = React.useState(startsWithPlaceholders ? initialPeople.length : 2);
     const [newName, setNewName] = React.useState('');
     const [pendingVenmoId, setPendingVenmoId] = React.useState(null);
     const [venmoInput, setVenmoInput] = React.useState('');
@@ -1506,8 +1623,52 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
         setPeople(prev => prev.filter(p => p.id !== id));
     };
 
+    const renamePerson = (id, name) => setPeople(prev => prev.map(p => p.id === id ? applyPersonPatch(p, { name }) : p));
+
+    const handleContinue = () => {
+        if (mode === 'count') {
+            const generated = peopleFromCount(people, count);
+            setPeople(generated);
+            onComplete(generated);
+        } else {
+            onComplete(people);
+        }
+    };
+
     return (
         <div className="fade-up">
+            <div className="tab-bar mb-md">
+                <button className={`tab ${mode === 'names' ? 'active' : ''}`} onClick={() => setMode('names')}>
+                    Add names
+                </button>
+                <button className={`tab ${mode === 'count' ? 'active' : ''}`} onClick={() => { setMode('count'); if (people.length > 1) setCount(Math.min(people.length, MAX_HEADCOUNT)); }}>
+                    I'll add names later
+                </button>
+            </div>
+
+            {mode === 'count' ? (
+            <div className="fade-up">
+                <p className="t-body text-secondary mb-md">
+                    Just pick a headcount. Everyone gets a placeholder name you can tap to change at any step.
+                </p>
+                <div className="card p-sm flex items-center justify-between mb-lg">
+                    <div>
+                        <p style={{ fontWeight: 500 }}>How many people?</p>
+                        <p className="t-caption text-tertiary mt-1">Including you</p>
+                    </div>
+                    <div className="flex items-center gap-sm">
+                        <button className="stepper-btn" aria-label="Fewer people" disabled={count <= MIN_PEOPLE} onClick={() => setCount(c => Math.max(MIN_PEOPLE, c - 1))}>
+                            <Icon name="minus" size={16} />
+                        </button>
+                        <span aria-live="polite" style={{ fontSize: 22, fontWeight: 600, minWidth: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{count}</span>
+                        <button className="stepper-btn" aria-label="More people" disabled={count >= MAX_HEADCOUNT} onClick={() => setCount(c => Math.min(MAX_HEADCOUNT, c + 1))}>
+                            <Icon name="plus" size={16} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+            ) : (
+            <>
             <p className="t-body text-secondary mb-md">
                 Add everyone at the table. You'll assign items to them in the next step.
             </p>
@@ -1528,7 +1689,7 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                                         style={{ height: 28, fontSize: 14, fontWeight: 500, padding: '0 8px', border: 'none', background: 'transparent', outline: 'none', flex: 1, minWidth: 0 }}
                                     />
                                 ) : (
-                                    <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</span>
+                                    <EditableName person={person} onRename={renamePerson} style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} />
                                 )}
                             </div>
                             {i !== 0 && (
@@ -1570,10 +1731,12 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                     Add
                 </Button>
             </div>
+            </>
+            )}
 
             <Button
                 className="w-full"
-                onClick={() => onComplete(people)}
+                onClick={handleContinue}
                 disabled={people.length < 1}
                 icon="arrowRight"
                 iconRight="arrowRight"
@@ -1586,17 +1749,23 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
 
 // ─── SPLIT EDITOR ──────────────────────────────────────────────────────────
 
-const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange }) => {
+const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange, onRenamePerson }) => {
     const [splitMode, setSplitMode] = React.useState(savedState?.splitMode || 'item'); // item | custom | percent
-    // item assignments: { itemIdx: [personId] }
-    const [assignments, setAssignments] = React.useState(savedState?.assignments || {});
+    // item assignments: { itemIdx: [personId] }. If people were removed since this
+    // state was saved (Back → people → fewer), drop their ids so nothing is
+    // assigned to someone who no longer exists.
+    const [assignments, setAssignments] = React.useState(() => {
+        const ids = new Set(people.map(p => p.id));
+        return Object.fromEntries(Object.entries(savedState?.assignments || {}).map(([k, v]) => [k, v.filter(id => ids.has(id))]));
+    });
     // custom: { personId: amount }
     const [customAmounts, setCustomAmounts] = React.useState(
         savedState?.customAmounts || Object.fromEntries(people.map(p => [p.id, '']))
     );
     // percent: { personId: percent }
     const [percents, setPercents] = React.useState(() => {
-        if (savedState?.percents) return savedState.percents;
+        if (savedState?.percents && people.every(p => p.id in savedState.percents)
+            && Object.keys(savedState.percents).length === people.length) return savedState.percents;
         const even = (100 / people.length).toFixed(1);
         return Object.fromEntries(people.map(p => [p.id, even]));
     });
@@ -1805,8 +1974,8 @@ const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange })
                             <div className="avatar" style={{ background: p.color + '20', color: p.color, borderColor: p.color + '40', flexShrink: 0 }}>
                                 {p.name.substring(0, 2).toUpperCase()}
                             </div>
-                            <div style={{ flex: 1 }}>
-                                <p style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</p>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 14, fontWeight: 500 }}><EditableName person={p} onRename={onRenamePerson} /></p>
                                 <p className="t-caption text-tertiary">{formatCurrency(total * ((parseFloat(percents[p.id]) || 0) / 100))}</p>
                             </div>
                             <div style={{ position: 'relative', width: 110 }}>
@@ -1841,7 +2010,7 @@ const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange })
                     <div key={p.id} className="summary-row">
                         <div className="flex items-center gap-sm">
                             <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
-                            <span style={{ fontSize: 14 }}>{p.name}</span>
+                            <EditableName person={p} onRename={onRenamePerson} style={{ fontSize: 14 }} />
                         </div>
                         <span style={{ fontWeight: 600, fontSize: 15, color: p.color }}>
                             {formatCurrency(shares[p.id] || 0)}
@@ -1867,9 +2036,18 @@ const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange })
 
 // ─── SUMMARY ───────────────────────────────────────────────────────────────
 
-const Summary = ({ result, onNew, onBack, onEditPeople }) => {
+const Summary = ({ result, onNew, onBack, onUpdatePerson }) => {
     const { people, shares, receipt, splitMode } = result;
     const [copied, setCopied] = React.useState(false);
+    const [venmoEditId, setVenmoEditId] = React.useState(null);
+    const [venmoDraft, setVenmoDraft] = React.useState('');
+    const renamePerson = onUpdatePerson ? (id, name) => onUpdatePerson(id, { name }) : null;
+    const saveVenmo = (id) => {
+        const handle = sanitizeVenmoHandle(venmoDraft);
+        if (handle && onUpdatePerson) onUpdatePerson(id, { venmo: handle });
+        setVenmoEditId(null);
+        setVenmoDraft('');
+    };
     const [copiedPerson, setCopiedPerson] = React.useState(null);
     const [shareLinkCopied, setShareLinkCopied] = React.useState(false);
     const [shareLoading, setShareLoading] = React.useState(false);
@@ -1962,11 +2140,11 @@ const Summary = ({ result, onNew, onBack, onEditPeople }) => {
                     return (
                         <div key={p.id} className="p-sm fade-up" style={{ animationDelay: `${i * 60}ms`, borderBottom: i < sorted.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
                             <div className="flex items-center justify-between mb-xs">
-                                <div className="flex items-center gap-sm">
+                                <div className="flex items-center gap-sm" style={{ minWidth: 0, flexWrap: 'wrap' }}>
                                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-                                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{p.name}</span>
-                                    {!p.venmo && onEditPeople && (
-                                        <button onClick={onEditPeople} style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>
+                                    <EditableName person={p} onRename={renamePerson} style={{ fontWeight: 500, color: 'var(--text-primary)' }} />
+                                    {!p.venmo && onUpdatePerson && venmoEditId !== p.id && (
+                                        <button onClick={() => { setVenmoEditId(p.id); setVenmoDraft(''); }} style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>
                                             + add venmo
                                         </button>
                                     )}
@@ -2013,6 +2191,20 @@ const Summary = ({ result, onNew, onBack, onEditPeople }) => {
                                     </button>
                                 )}
                             </div>
+                            {venmoEditId === p.id && (
+                                <div className="fade-up" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 8px 18px' }}>
+                                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>Venmo</span>
+                                    <input
+                                        autoFocus
+                                        placeholder="@username"
+                                        value={venmoDraft}
+                                        onChange={e => setVenmoDraft(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') saveVenmo(p.id); if (e.key === 'Escape') { setVenmoEditId(null); setVenmoDraft(''); } }}
+                                        onBlur={() => saveVenmo(p.id)}
+                                        style={{ flex: 1, minWidth: 0, height: 34, fontSize: 16, padding: '0 10px', background: 'var(--surface-2)', border: '1px solid var(--border-divider)', borderRadius: 8, color: 'var(--text-secondary)', outline: 'none' }}
+                                    />
+                                </div>
+                            )}
                             <div style={{ height: 3, background: 'var(--surface-3)', borderRadius: 2, overflow: 'hidden' }}>
                                 <div style={{
                                     height: '100%',
@@ -2654,6 +2846,9 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
     const [editingNames, setEditingNames] = React.useState(false);
     const [draftNames, setDraftNames] = React.useState({});
     const people = trip.people;
+    const renamePerson = onUpdatePeople
+        ? (id, name) => onUpdatePeople(trip.people.map(p => p.id === id ? applyPersonPatch(p, { name }) : p))
+        : null;
 
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const fairShare = people.length > 0 ? grandTotal / people.length : 0;
@@ -2759,7 +2954,10 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
                     {onUpdatePeople && (
                         editingNames ? (
                             <button className="btn btn-ghost btn-sm" style={{ fontSize: 12, color: 'var(--primary)', padding: '2px 6px' }} onClick={() => {
-                                const updated = trip.people.map(p => ({ ...p, name: draftNames[p.id] ?? p.name }));
+                                const updated = trip.people.map(p => {
+                                    const name = cleanStr(draftNames[p.id] ?? '', 40);
+                                    return name && name !== p.name ? applyPersonPatch(p, { name }) : p;
+                                });
                                 onUpdatePeople(updated);
                                 setEditingNames(false);
                             }}>Done</button>
@@ -2832,12 +3030,12 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
                                 <div className="flex items-center gap-sm" style={{ flexWrap: 'wrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.from.color }} />
-                                        <span style={{ fontWeight: 500 }}>{s.from.name}</span>
+                                        <EditableName person={s.from} onRename={renamePerson} style={{ fontWeight: 500 }} />
                                     </div>
                                     <span className="t-caption text-tertiary">pays</span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.to.color }} />
-                                        <span style={{ fontWeight: 500 }}>{s.to.name}</span>
+                                        <EditableName person={s.to} onRename={renamePerson} style={{ fontWeight: 500 }} />
                                     </div>
                                 </div>
                                 {s.to.venmo ? (
@@ -2879,7 +3077,7 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
                         <div key={p.id} className="flex items-center justify-between t-caption py-1" style={{ borderBottom: i < balances.length - 1 ? '1px solid var(--border-divider)' : 'none' }}>
                             <div className="flex items-center gap-xs">
                                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
-                                <span>{p.name}</span>
+                                <EditableName person={p} onRename={renamePerson} />
                             </div>
                             <div style={{ display: 'flex', gap: 16 }}>
                                 <span className="text-tertiary">paid {formatCurrency(p.paid)}</span>
@@ -3032,7 +3230,11 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                                             style={{ fontSize: 13, fontWeight: 500, background: 'transparent', border: 'none', outline: 'none', width: Math.max(youDraftName.length, 3) + 'ch' }}
                                         />
                                     ) : (
-                                        <span style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</span>
+                                        <EditableName
+                                            person={p}
+                                            onRename={(id, name) => onUpdatePeople(people.map(x => x.id === id ? applyPersonPatch(x, { name }) : x))}
+                                            style={{ fontSize: 13, fontWeight: 500 }}
+                                        />
                                     )}
                                     <button
                                         className="btn btn-ghost btn-icon"
@@ -3388,6 +3590,15 @@ const App = () => {
         navigate('split');
     };
 
+    // Rename a person or attach a Venmo handle from the split or summary screen.
+    // Updates both the people list and the computed result, so Back keeps it.
+    const updatePerson = (id, patch) => {
+        const apply = list => list && list.map(p => p.id === id ? applyPersonPatch(p, patch) : p);
+        setPeople(apply);
+        setResult(r => r ? { ...r, people: apply(r.people) } : r);
+    };
+    const renamePerson = (id, name) => updatePerson(id, { name });
+
     const handleSplitComplete = (res) => {
         setResult(res);
         navigate('summary');
@@ -3538,10 +3749,11 @@ const App = () => {
                             onComplete={handleSplitComplete}
                             savedState={splitState}
                             onStateChange={setSplitState}
+                            onRenamePerson={renamePerson}
                         />
                     )}
                     {step === 'summary' && result && (
-                        <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} onEditPeople={() => navigate('people')} />
+                        <Summary result={result} onNew={handleNew} onBack={() => navigate('split')} onUpdatePerson={updatePerson} />
                     )}
                 </div>
                 )}
