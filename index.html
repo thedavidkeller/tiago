@@ -18,9 +18,15 @@
         gtag('config', 'G-EGMHH5P1HW');
     </script>
 
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Pinned to exact versions with Subresource Integrity. To upgrade, change the
+         version AND recompute the hash:
+         curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
+    <script crossorigin="anonymous" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"
+        integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"
+        integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"
+        integrity="sha384-BcI7nduYchENm39cFMEVJXHEE7fwHONANyn/pY2YTa+BNtrWF2bKBZeI0wqVithi"></script>
 
     <style>
         :root {
@@ -625,6 +631,100 @@ const genId = () => Math.random().toString(36).slice(2, 9);
 const SHARE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const NONCE_LEN = 20;
 
+// ─── UNTRUSTED-DATA SANITIZERS ─────────────────────────────────────────────
+// OCR output, share links and localStorage are all untrusted. React escapes text
+// nodes, so markup can't be injected through names, but malformed shapes can still
+// crash a render, and some values (colors) flow into CSS. Everything is normalized
+// here before it reaches component state.
+
+const MAX_ITEMS = 200;
+const MAX_PEOPLE = 50;
+const MAX_RECEIPTS = 200;
+
+const cleanStr = (v, max = 80) =>
+    (typeof v === 'string' || typeof v === 'number')
+        ? String(v).replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, max)
+        : '';
+
+const cleanNum = (v) => {
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+};
+
+// Only #rrggbb is allowed into style props, which keeps url(...) and the like out of CSS.
+const cleanColor = (c, fallback = PERSON_COLORS[0]) =>
+    (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) ? c : fallback;
+
+const cleanId = (v) => cleanStr(v, 32).replace(/[^A-Za-z0-9_-]/g, '');
+
+const cleanDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v : null;
+
+// Venmo usernames: letters, numbers, hyphens, underscores only.
+const sanitizeVenmoHandle = (v) =>
+    cleanStr(v, 40).replace(/^@/, '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30);
+
+const sanitizePeople = (arr) =>
+    (Array.isArray(arr) ? arr : []).slice(0, MAX_PEOPLE)
+        .filter(p => p && typeof p === 'object')
+        .map((p, i) => {
+            const out = {
+                id: cleanId(p.id) || genId(),
+                name: cleanStr(p.name, 40) || `Person ${i + 1}`,
+                color: cleanColor(p.color, PERSON_COLORS[i % PERSON_COLORS.length]),
+            };
+            const venmo = sanitizeVenmoHandle(p.venmo);
+            if (venmo) out.venmo = venmo;
+            return out;
+        });
+
+// Normalizes a receipt from OCR or a share link. Returns null if it's unusable.
+const sanitizeReceipt = (r) => {
+    if (!r || typeof r !== 'object') return null;
+    const items = (Array.isArray(r.items) ? r.items : []).slice(0, MAX_ITEMS)
+        .filter(i => i && typeof i === 'object')
+        .map(i => ({ name: cleanStr(i.name) || 'Item', price: cleanNum(i.price) }));
+    const itemsTotal = Math.round(items.reduce((s, i) => s + i.price, 0) * 100) / 100;
+    const tax = cleanNum(r.tax);
+    const tip = cleanNum(r.tip);
+    return {
+        restaurant: cleanStr(r.restaurant) || 'Receipt',
+        date: cleanStr(r.date, 40) || null,
+        items,
+        subtotal: cleanNum(r.subtotal) || itemsTotal,
+        tax,
+        tip,
+        total: cleanNum(r.total) || Math.round((itemsTotal + tax + tip) * 100) / 100,
+    };
+};
+
+const sanitizeTrip = (t) => {
+    if (!t || typeof t !== 'object') return null;
+    const people = sanitizePeople(t.people);
+    const ids = new Set(people.map(p => p.id));
+    const receipts = (Array.isArray(t.receipts) ? t.receipts : []).slice(0, MAX_RECEIPTS)
+        .filter(r => r && typeof r === 'object')
+        .map(r => {
+            const paidBy = cleanId(r.paidBy);
+            return {
+                restaurant: cleanStr(r.restaurant) || 'Receipt',
+                total: cleanNum(r.total),
+                paidBy: ids.has(paidBy) ? paidBy : null,
+                date: cleanDate(r.date),
+            };
+        });
+    return { name: cleanStr(t.name, 60) || 'Trip', people, receipts };
+};
+
+// Validates a decoded trip-share envelope { tv, at, trip }.
+const validateTripEnvelope = (data) => {
+    if (!data || typeof data !== 'object' || !data.tv || !Number.isFinite(data.at)) return null;
+    if (Date.now() - data.at > SHARE_EXPIRY_MS) return { expired: true };
+    const trip = sanitizeTrip(data.trip);
+    return trip ? { tv: data.tv, at: data.at, trip } : null;
+};
+
+const MAX_HASH_LEN = 200000; // refuse absurdly large payloads before decoding
+
 const toBase64Url = (str) =>
     btoa(unescape(encodeURIComponent(str)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
@@ -636,7 +736,9 @@ const fromBase64Url = (b64url) => {
 };
 
 const generateShareUrl = (receipt, people) => {
-    const data = { v: 1, at: Date.now(), receipt, people };
+    // Sanitizing also drops imagePreview, so the receipt photo never ends up in a
+    // link (or at the URL shortener).
+    const data = { v: 1, at: Date.now(), receipt: sanitizeReceipt(receipt), people: sanitizePeople(people) };
     const encoded = toBase64Url(JSON.stringify(data));
     const charset = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const nonce = Array.from({ length: NONCE_LEN }, () => charset[Math.floor(Math.random() * charset.length)]).join('');
@@ -645,14 +747,17 @@ const generateShareUrl = (receipt, people) => {
 
 const parseShareUrl = () => {
     const hash = window.location.hash;
-    if (!hash.startsWith('#share_')) return null;
+    if (!hash.startsWith('#share_') || hash.length > MAX_HASH_LEN) return null;
     const payload = hash.slice(7); // strip '#share_'
     const encoded = payload.slice(NONCE_LEN);
     try {
         const data = JSON.parse(fromBase64Url(encoded));
-        if (!data.v || !data.at || !data.receipt || !data.people) return null;
+        if (!data || typeof data !== 'object' || !data.v || !Number.isFinite(data.at)) return null;
         if (Date.now() - data.at > SHARE_EXPIRY_MS) return { expired: true };
-        return data;
+        const receipt = sanitizeReceipt(data.receipt);
+        const people = sanitizePeople(data.people);
+        if (!receipt || people.length === 0) return null;
+        return { v: data.v, at: data.at, receipt, people };
     } catch (e) { return null; }
 };
 
@@ -679,7 +784,7 @@ const shortenUrl = async (url) => {
         const res = await fetch('/api/shorten?url=' + encodeURIComponent(url));
         if (!res.ok) throw new Error();
         const short = (await res.text()).trim();
-        if (short.startsWith('http')) return short;
+        if (/^https:\/\/is\.gd\/[A-Za-z0-9_-]+$/.test(short)) return short;
         throw new Error();
     } catch {
         return url; // fallback: copy long URL
@@ -688,45 +793,74 @@ const shortenUrl = async (url) => {
 
 const parseTripShareUrl = () => {
     const search = window.location.search;
-    if (!search || search.length < 10) return null;
+    if (!search || search.length < 10 || search.length > MAX_HASH_LEN) return null;
     const encoded = search.slice(1); // strip leading ?
     try {
         const b64 = encoded.replace(/-/g, '+').replace(/\./g, '/');
         const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - b64.length % 4);
-        const data = JSON.parse(decodeURIComponent(escape(atob(b64 + pad))));
-        if (!data.tv || !data.at || !data.trip) return null;
-        if (Date.now() - data.at > SHARE_EXPIRY_MS) return { expired: true };
-        return data;
+        return validateTripEnvelope(JSON.parse(decodeURIComponent(escape(atob(b64 + pad)))));
     } catch (e) { return null; }
 };
 
-// ─── CRYPTO (AES-GCM via Web Crypto API) ──────────────────────────────────
+// ─── PIN-PROTECTED LINKS (AES-GCM via Web Crypto API) ─────────────────────
+//
+// IMPORTANT: a 4-digit PIN has only 10,000 possible values. Anyone who has the
+// link can brute-force it offline in minutes, whatever the KDF cost. This is a
+// light privacy layer that keeps names and amounts from being readable at a
+// glance when a link gets forwarded. It is NOT real security, so the UI must
+// never call these links "secure" or "encrypted".
+//
+// v2 links ('&pin=2'): base64url( salt[16] | iv[12] | ciphertext ), with
+//   key = PBKDF2-SHA256(pin, salt, 310k iterations). Fresh random salt + IV per link.
+// v1 links ('&pin=1'): fixed salt, 100k iterations. Decrypt-only, kept so links
+//   shared before this change still open (they expire after 30 days anyway).
 
-const TRIP_SALT = new TextEncoder().encode('tiago-trip-salt-v1');
+const PBKDF2_ITERATIONS = 310000;
+const LEGACY_TRIP_SALT = new TextEncoder().encode('tiago-trip-salt-v1');
+const LEGACY_PBKDF2_ITERATIONS = 100000;
 
-const deriveKey = async (pin) => {
+const deriveKey = async (pin, salt, iterations) => {
     const raw = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: TRIP_SALT, iterations: 100000, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
         raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
     );
 };
 
-const encryptTrip = async (json, pin) => {
-    const key = await deriveKey(pin);
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(json));
-    const combined = new Uint8Array(12 + enc.byteLength);
-    combined.set(iv, 0); combined.set(new Uint8Array(enc), 12);
-    return btoa(String.fromCharCode(...combined)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+const bytesToB64Url = (bytes) => {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 };
 
-const decryptTrip = async (b64, pin) => {
-    const key = await deriveKey(pin);
+const b64UrlToBytes = (b64) => {
     const b64std = b64.replace(/-/g, '+').replace(/_/g, '/');
     const pad = b64std.length % 4 ? '='.repeat(4 - b64std.length % 4) : '';
-    const combined = Uint8Array.from(atob(b64std + pad), c => c.charCodeAt(0));
-    const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: combined.slice(0, 12) }, key, combined.slice(12));
+    return Uint8Array.from(atob(b64std + pad), c => c.charCodeAt(0));
+};
+
+const encryptTrip = async (json, pin) => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12)); // never reused: new per call
+    const key = await deriveKey(pin, salt, PBKDF2_ITERATIONS);
+    const enc = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(json)));
+    const combined = new Uint8Array(16 + 12 + enc.byteLength);
+    combined.set(salt, 0); combined.set(iv, 16); combined.set(enc, 28);
+    return bytesToB64Url(combined);
+};
+
+const decryptTrip = async (b64, pin, version) => {
+    const bytes = b64UrlToBytes(b64);
+    let salt, iv, ct, iterations;
+    if (version === 2) {
+        salt = bytes.slice(0, 16); iv = bytes.slice(16, 28); ct = bytes.slice(28);
+        iterations = PBKDF2_ITERATIONS;
+    } else {
+        salt = LEGACY_TRIP_SALT; iv = bytes.slice(0, 12); ct = bytes.slice(12);
+        iterations = LEGACY_PBKDF2_ITERATIONS;
+    }
+    const key = await deriveKey(pin, salt, iterations);
+    const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
     return new TextDecoder().decode(dec);
 };
 
@@ -745,27 +879,79 @@ const buildTripPayload = (trip) => {
 const generateTripHashUrl = async (trip, pin) => {
     const json = buildTripPayload(trip);
     const base = window.location.href.split(/[#?]/)[0];
-    if (pin && pin.length === 4) {
+    if (pin && /^\d{4}$/.test(pin)) {
         const enc = await encryptTrip(json, pin);
-        return base + '#trip=' + enc + '&pin=1';
+        return base + '#trip=' + enc + '&pin=2';
     }
     return base + '#trip=' + toBase64Url(json);
 };
 
 const parseTripHash = () => {
     const hash = window.location.hash;
-    if (!hash.startsWith('#trip=')) return null;
+    if (!hash.startsWith('#trip=') || hash.length > MAX_HASH_LEN) return null;
     const rest = hash.slice(6);
     const pinIdx = rest.indexOf('&pin=');
-    const hasPinFlag = pinIdx !== -1 && rest.slice(pinIdx + 5) === '1';
-    const encoded = hasPinFlag ? rest.slice(0, pinIdx) : rest;
-    if (hasPinFlag) return { needsPin: true, encoded };
+    const encoded = pinIdx !== -1 ? rest.slice(0, pinIdx) : rest;
+    if (!/^[A-Za-z0-9_-]+$/.test(encoded)) return null;
+    if (pinIdx !== -1) {
+        const pinVersion = Number(rest.slice(pinIdx + 5));
+        if (pinVersion !== 1 && pinVersion !== 2) return null;
+        return { needsPin: true, encoded, pinVersion };
+    }
     try {
-        const data = JSON.parse(fromBase64Url(encoded));
-        if (!data.tv || !data.at || !data.trip) return null;
-        if (Date.now() - data.at > SHARE_EXPIRY_MS) return { expired: true };
-        return data;
+        return validateTripEnvelope(JSON.parse(fromBase64Url(encoded)));
     } catch { return null; }
+};
+
+// ─── PAYMENT LINKS ─────────────────────────────────────────────────────────
+
+// Hardcoded on purpose: never built from user input.
+const DONATION_URL = 'https://cash.app/$thedavidkeller/5';
+
+// Always a plain non-negative number with two decimals, e.g. "12.50".
+const formatAmountParam = (amount) => {
+    const n = Number(amount);
+    return (Number.isFinite(n) ? Math.round(Math.abs(n) * 100) / 100 : 0).toFixed(2);
+};
+
+const openVenmo = (handle, amount, note) => {
+    const h = sanitizeVenmoHandle(handle);
+    if (!h) return;
+    gtag('event', 'venmo_deep_link');
+    const amt = encodeURIComponent(formatAmountParam(amount));
+    const n = encodeURIComponent(cleanStr(note, 60));
+    const user = encodeURIComponent(h);
+    const deep = `venmo://paycharge?txn=pay&recipients=${user}&amount=${amt}&note=${n}`;
+    const web = `https://venmo.com/u/${user}?txn=pay&amount=${amt}&note=${n}`;
+    const start = Date.now();
+    window.location = deep;
+    setTimeout(() => { if (Date.now() - start < 1500) window.open(web, '_blank', 'noopener'); }, 1000);
+};
+
+// ─── API KEY STORAGE ───────────────────────────────────────────────────────
+// The key lives in React state plus sessionStorage, so it survives a reload of
+// this tab and is gone once the tab closes. It is never written to localStorage,
+// the URL, or the console. Older versions used localStorage, so any key left
+// there is moved into this session once and then deleted.
+
+const API_KEY_STORAGE = 'splitter-api-key';
+
+const loadApiKey = () => {
+    try {
+        const legacy = localStorage.getItem(API_KEY_STORAGE);
+        if (legacy) {
+            localStorage.removeItem(API_KEY_STORAGE);
+            sessionStorage.setItem(API_KEY_STORAGE, legacy);
+        }
+    } catch {}
+    try { return sessionStorage.getItem(API_KEY_STORAGE) || null; } catch { return null; }
+};
+
+const storeApiKey = (key) => {
+    try {
+        if (key) sessionStorage.setItem(API_KEY_STORAGE, key);
+        else sessionStorage.removeItem(API_KEY_STORAGE);
+    } catch {}
 };
 
 // ─── SVG ICONS ─────────────────────────────────────────────────────────────
@@ -846,6 +1032,8 @@ const Input = ({ label, type = 'text', placeholder, value, onChange, prefix, suf
                 autoFocus={autoFocus}
                 onKeyDown={onKeyDown}
                 style={style}
+                autoComplete={type === 'password' ? 'off' : undefined}
+                spellCheck={type === 'password' ? false : undefined}
             />
             {suffix && (
                 <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', fontSize: 13 }}>
@@ -888,10 +1076,11 @@ const ApiKeyGate = ({ onSave, onDismiss }) => {
                 </div>
                 <p className="t-body text-secondary mb-md">
                 The splitter uses Claude's vision to read receipts and extract line items automatically.
-                    Your key is stored only in this browser session — never sent to any server.<br/><br/>Enter your own Anthropic API key to utilize the AI features.
+                    Your key is kept only for this browser tab session and is sent only to Anthropic.<br/><br/>Enter your own Anthropic API key to utilize the AI features.
                 </p>
                 <Input
                     label="Anthropic API Key"
+                    type="password"
                     placeholder="sk-ant-..."
                     value={key}
                     onChange={e => setKey(e.target.value)}
@@ -911,86 +1100,66 @@ const ApiKeyGate = ({ onSave, onDismiss }) => {
                     </Button>
                 </div>
                 <p className="t-caption text-tertiary mt-md text-center">
-                    Don't have a key? <a href="https://console.anthropic.com" target="_blank" style={{ color: 'var(--primary)' }}>console.anthropic.com</a>
+                    Don't have a key? <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>console.anthropic.com</a>
                 </p>
             </div>
         </div>
     );
 };
 
-// ─── RECEIPT SCANNER ───────────────────────────────────────────────────────
+// ─── IMAGE PREP ────────────────────────────────────────────────────────────
 
-const ReceiptScanner = ({ apiKey, onComplete, onManual }) => {
-    const [dragOver, setDragOver] = React.useState(false);
-    const [preview, setPreview] = React.useState(null);
-    const [imageData, setImageData] = React.useState(null);
-    const [scanning, setScanning] = React.useState(false);
-    const [error, setError] = React.useState(null);
-    const fileRef = React.useRef();
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;  // refuse anything bigger outright
+const MAX_DIRECT_BYTES = 3.5 * 1024 * 1024; // above this we re-encode (base64 adds ~33%, API cap is 5MB)
+const MAX_IMAGE_DIM = 2048;
+const API_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-    const handleFile = (file) => {
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const dataUrl = e.target.result;
-            const MAX_BYTES = 4.5 * 1024 * 1024;
-            if (file.size <= MAX_BYTES) {
-                setPreview(dataUrl);
-                setImageData(dataUrl.split(',')[1]);
-                setError(null);
-                return;
-            }
-            // Resize down using canvas so it fits under the API's 5MB limit
-            const img = new Image();
-            img.onload = () => {
-                const MAX_DIM = 2048;
-                let { width, height } = img;
-                if (width > height) {
-                    if (width > MAX_DIM) { height = Math.round(height * MAX_DIM / width); width = MAX_DIM; }
-                } else {
-                    if (height > MAX_DIM) { width = Math.round(width * MAX_DIM / height); height = MAX_DIM; }
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                const resized = canvas.toDataURL('image/jpeg', 0.88);
-                setPreview(resized);
-                setImageData(resized.split(',')[1]);
-                setError(null);
-            };
-            img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
-    };
+// Returns an error message, or null if the file is OK to try.
+const validateImageFile = (file) => {
+    if (!file.type || !file.type.startsWith('image/')) return 'That file isn\'t an image. Choose a photo of the receipt.';
+    if (file.size > MAX_UPLOAD_BYTES) return 'That photo is too large (max 25 MB).';
+    return null;
+};
 
-    const handleDrop = (e) => {
-        e.preventDefault();
-        setDragOver(false);
-        handleFile(e.dataTransfer.files[0]);
-    };
+const readAsDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+});
 
-    const scanReceipt = async () => {
-        if (!imageData || !apiKey) return;
-        setScanning(true);
-        setError(null);
-        try {
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-                body: JSON.stringify({
-                    model: 'claude-opus-4-6',
-                    max_tokens: 1500,
-                    messages: [{
-                        role: 'user',
-                        content: [
-                            {
-                                type: 'image',
-                                source: { type: 'base64', media_type: imageData ? (preview.match(/^data:([^;]+)/)?.[1] || 'image/jpeg') : 'image/jpeg', data: imageData }
-                            },
-                            {
-                                type: 'text',
-                                text: `Extract this restaurant receipt into JSON. Return ONLY valid JSON, nothing else.
+// Small images in a type the API accepts go through as-is. Anything else (large
+// photos, HEIC, etc.) is redrawn on a canvas, downscaled to MAX_IMAGE_DIM and
+// re-encoded as JPEG.
+const prepareImage = async (file) => {
+    const dataUrl = await readAsDataUrl(file);
+    if (file.size <= MAX_DIRECT_BYTES && API_IMAGE_TYPES.includes(file.type)) {
+        return { dataUrl, base64: dataUrl.split(',')[1], mediaType: file.type };
+    }
+    const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = dataUrl;
+    });
+    let { width, height } = img;
+    const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(width, height));
+    width = Math.round(width * scale); height = Math.round(height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+    const resized = canvas.toDataURL('image/jpeg', 0.88);
+    return { dataUrl: resized, base64: resized.split(',')[1], mediaType: 'image/jpeg' };
+};
+
+// ─── RECEIPT OCR (BYOK) ────────────────────────────────────────────────────
+// Each provider takes { apiKey, image: { base64, mediaType }, prompt } and returns
+// the model's raw text. Adding another provider (e.g. OpenAI) means adding an
+// entry here plus a picker on the key screen. Parsing and validation are shared.
+
+class ReceiptParseError extends Error {}
+
+const RECEIPT_PROMPT = `Extract this restaurant receipt into JSON. Return ONLY valid JSON, nothing else.
 Format:
 {
   "restaurant": "Restaurant Name",
@@ -1007,24 +1176,106 @@ Rules:
 - Each item must have a name and a numeric price
 - If subtotal/tax/tip aren't shown, calculate or set to 0
 - All prices must be numbers, not strings
-- Include every line item on the receipt`
-                            }
+- Include every line item on the receipt`;
+
+const OCR_PROVIDERS = {
+    anthropic: {
+        label: 'Anthropic',
+        keyPrefix: 'sk-ant-',
+        consoleUrl: 'https://console.anthropic.com',
+        async complete({ apiKey, image, prompt }) {
+            // The key is only ever sent here. The dangerous-direct-browser-access
+            // header is what lets a browser call the API with a user's own key (BYOK).
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                body: JSON.stringify({
+                    model: 'claude-opus-4-6',
+                    max_tokens: 1500,
+                    messages: [{
+                        role: 'user',
+                        content: [
+                            { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+                            { type: 'text', text: prompt }
                         ]
                     }]
                 })
             });
+            const data = await res.json().catch(() => null);
             if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error?.message || 'API error');
+                const msg = data?.error?.message;
+                throw new Error(typeof msg === 'string' ? msg.slice(0, 200) : `API error (${res.status})`);
             }
-            const data = await res.json();
-            const text = data.content[0].text;
-            const clean = text.replace(/```json|```/g, '').trim();
-            const parsed = JSON.parse(clean);
+            const block = Array.isArray(data?.content) ? data.content.find(b => b?.type === 'text') : null;
+            if (!block || typeof block.text !== 'string') throw new ReceiptParseError('no text');
+            return block.text;
+        }
+    }
+};
+
+// Model output is untrusted: pull out the JSON object, parse it, and normalize it.
+const parseReceiptText = (text) => {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start === -1 || end <= start) throw new ReceiptParseError('no json');
+    let raw;
+    try { raw = JSON.parse(text.slice(start, end + 1)); } catch { throw new ReceiptParseError('bad json'); }
+    const receipt = sanitizeReceipt(raw);
+    if (!receipt || receipt.items.length === 0) throw new ReceiptParseError('no items');
+    return receipt;
+};
+
+const extractReceipt = async ({ apiKey, image, provider = 'anthropic' }) => {
+    const p = OCR_PROVIDERS[provider];
+    if (!p) throw new Error('Unknown provider');
+    const text = await p.complete({ apiKey, image, prompt: RECEIPT_PROMPT });
+    return parseReceiptText(text);
+};
+
+// ─── RECEIPT SCANNER ───────────────────────────────────────────────────────
+
+const ReceiptScanner = ({ apiKey, onComplete, onManual }) => {
+    const [dragOver, setDragOver] = React.useState(false);
+    const [preview, setPreview] = React.useState(null);
+    const [imageData, setImageData] = React.useState(null);
+    const [scanning, setScanning] = React.useState(false);
+    const [error, setError] = React.useState(null);
+    const fileRef = React.useRef();
+
+    const handleFile = (file) => {
+        if (!file) return;
+        const check = validateImageFile(file);
+        if (check) { setError(check); return; }
+        prepareImage(file)
+            .then(({ dataUrl, base64, mediaType }) => {
+                setPreview(dataUrl);
+                setImageData({ base64, mediaType });
+                setError(null);
+            })
+            .catch(() => setError("Couldn't read that photo. Try a JPG or PNG, or enter items manually."));
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        handleFile(e.dataTransfer.files[0]);
+    };
+
+    const scanReceipt = async () => {
+        if (!imageData || !apiKey) return;
+        setScanning(true);
+        setError(null);
+        try {
+            const parsed = await extractReceipt({ apiKey, image: imageData });
             gtag('event', 'receipt_scan', { method: 'claude_ai' });
             onComplete({ ...parsed, imagePreview: preview });
         } catch (err) {
-            setError(err.message.includes('parse') ? 'Could not read receipt. Try manual entry.' : err.message);
+            setError(err instanceof ReceiptParseError ? 'Could not read receipt. Try manual entry.' : (err.message || 'Something went wrong.'));
         } finally {
             setScanning(false);
         }
@@ -1060,6 +1311,7 @@ Rules:
                         <span className="badge badge-neutral">HEIC</span>
                         <span className="badge badge-neutral">WEBP</span>
                     </div>
+                    {error && <p className="t-caption text-error">{error}</p>}
                 </div>
             ) : (
                 <div>
@@ -1225,7 +1477,7 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
     };
 
     const saveVenmo = (personId, val) => {
-        const cleaned = val.trim().replace(/^@/, '');
+        const cleaned = sanitizeVenmoHandle(val);
         if (cleaned) setPeople(prev => prev.map(p => p.id === personId ? { ...p, venmo: cleaned } : p));
         setPendingVenmoId(null);
         setVenmoInput('');
@@ -1645,21 +1897,12 @@ const Summary = ({ result, onNew, onBack, onEditPeople }) => {
     const copyAmountForVenmo = async (person, amount) => {
         gtag('event', 'venmo_link_click');
         try {
-            await navigator.clipboard.writeText(amount.toFixed(2));
+            await navigator.clipboard.writeText(formatAmountParam(amount));
             setCopiedPerson(person.id);
             setTimeout(() => setCopiedPerson(null), 2000);
         } catch {}
     };
 
-    const openVenmo = (handle, amount, note) => {
-        gtag('event', 'venmo_deep_link');
-        const amtStr = amount.toFixed(2);
-        const deep = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amtStr}&note=${encodeURIComponent(note)}`;
-        const web = `https://venmo.com/u/${handle}?txn=pay&amount=${amtStr}&note=${encodeURIComponent(note)}`;
-        const start = Date.now();
-        window.location = deep;
-        setTimeout(() => { if (Date.now() - start < 1500) window.open(web, '_blank'); }, 1000);
-    };
 
     const maxShare = Math.max(...Object.values(shares));
 
@@ -1806,7 +2049,7 @@ const Summary = ({ result, onNew, onBack, onEditPeople }) => {
             </div>
             {shareLinkCopied && (
                 <p className="t-caption text-tertiary text-center mb-sm">
-                    Link expires in 7 days — anyone with it can claim their items
+                    Link expires in 30 days — anyone with it can claim their items
                 </p>
             )}
 
@@ -1849,7 +2092,7 @@ const SharedBillView = ({ data }) => {
 
     const copyAmount = async () => {
         try {
-            await navigator.clipboard.writeText(myTotal.toFixed(2));
+            await navigator.clipboard.writeText(formatAmountParam(myTotal));
             setCopied(true);
             setTimeout(() => setCopied(false), 2500);
         } catch {}
@@ -1998,7 +2241,7 @@ const SharedBillView = ({ data }) => {
 
 // ─── PIN GATE ──────────────────────────────────────────────────────────────
 
-const PinGate = ({ encoded }) => {
+const PinGate = ({ encoded, pinVersion }) => {
     const [pin, setPin] = React.useState('');
     const [shaking, setShaking] = React.useState(false);
     const [loading, setLoading] = React.useState(false);
@@ -2011,9 +2254,9 @@ const PinGate = ({ encoded }) => {
         if (pin.length !== 4 || loading) return;
         setLoading(true);
         try {
-            const json = await decryptTrip(encoded, pin);
-            const data = JSON.parse(json);
-            if (Date.now() - data.at > SHARE_EXPIRY_MS) { setTripData({ expired: true }); return; }
+            const json = await decryptTrip(encoded, pin, pinVersion);
+            const data = validateTripEnvelope(JSON.parse(json));
+            if (!data) throw new Error('bad payload');
             setTripData(data);
         } catch {
             setLoading(false);
@@ -2394,15 +2637,6 @@ const TripSplitView = ({ trip, onBack, onUpdateReceipt, onUpdatePeople }) => {
     const [draftNames, setDraftNames] = React.useState({});
     const people = trip.people;
 
-    const openVenmo = (handle, amount, note) => {
-        gtag('event', 'venmo_deep_link');
-        const amtStr = amount.toFixed(2);
-        const deep = `venmo://paycharge?txn=pay&recipients=${handle}&amount=${amtStr}&note=${encodeURIComponent(note)}`;
-        const web = `https://venmo.com/u/${handle}?txn=pay&amount=${amtStr}&note=${encodeURIComponent(note)}`;
-        const start = Date.now();
-        window.location = deep;
-        setTimeout(() => { if (Date.now() - start < 1500) window.open(web, '_blank'); }, 1000);
-    };
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const fairShare = people.length > 0 ? grandTotal / people.length : 0;
     const allAssigned = trip.receipts.length > 0 && trip.receipts.every(r => r.paidBy);
@@ -2669,7 +2903,7 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
     };
 
     const saveTripVenmo = (personId, val) => {
-        const cleaned = val.trim().replace(/^@/, '');
+        const cleaned = sanitizeVenmoHandle(val);
         if (cleaned) onUpdatePeople(people.map(p => p.id === personId ? { ...p, venmo: cleaned } : p));
         setPendingVenmoId(null);
         setVenmoInput('');
@@ -3087,12 +3321,14 @@ const TripsMode = ({ apiKey }) => {
 
 const STEPS = ['scan', 'items', 'people', 'split', 'summary'];
 
+const apiKeyAtBoot = loadApiKey();
+
 const App = () => {
     const [hashTripData] = React.useState(() => parseTripHash());
     const [tripShareData] = React.useState(() => hashTripData ? null : parseTripShareUrl());
     const [shareData] = React.useState(() => (hashTripData || tripShareData) ? null : parseShareUrl());
-    const [apiKey, setApiKey] = React.useState(() => localStorage.getItem('splitter-api-key') || null);
-    const [showApiGate, setShowApiGate] = React.useState(() => !localStorage.getItem('splitter-api-key'));
+    const [apiKey, setApiKey] = React.useState(apiKeyAtBoot);
+    const [showApiGate, setShowApiGate] = React.useState(() => !apiKeyAtBoot);
     const [step, setStep] = React.useState('scan'); // scan → items → people → split → summary
     const [receipt, setReceipt] = React.useState(null);
     const [people, setPeople] = React.useState(null);
@@ -3112,8 +3348,7 @@ const App = () => {
     const handleApiKey = (key) => {
         setApiKey(key);
         setShowApiGate(false);
-        if (key) localStorage.setItem('splitter-api-key', key);
-        else localStorage.removeItem('splitter-api-key');
+        storeApiKey(key);
     };
 
     const handleReceiptScanned = (data) => {
@@ -3163,7 +3398,7 @@ const App = () => {
         summary: receipt?.restaurant || ''
     }[step] || null;
 
-    if (hashTripData?.needsPin) return <PinGate encoded={hashTripData.encoded} />;
+    if (hashTripData?.needsPin) return <PinGate encoded={hashTripData.encoded} pinVersion={hashTripData.pinVersion} />;
     if (hashTripData) return <SharedTripView data={hashTripData} />;
     if (tripShareData) return <SharedTripView data={tripShareData} />;
     if (shareData) return <SharedBillView data={shareData} />;
@@ -3310,7 +3545,7 @@ const App = () => {
                     zIndex: 110
                 }}>
                     <a
-                        href="https://cash.app/$thedavidkeller/5"
+                        href={DONATION_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -3364,8 +3599,29 @@ const App = () => {
     );
 };
 
+// Last line of defense: if anything (e.g. a malformed share link) throws during
+// render, show a recoverable message instead of a blank page.
+class ErrorBoundary extends React.Component {
+    constructor(props) { super(props); this.state = { failed: false }; }
+    static getDerivedStateFromError() { return { failed: true }; }
+    render() {
+        if (!this.state.failed) return this.props.children;
+        return (
+            <div className="api-gate">
+                <div className="card p-lg text-center" style={{ maxWidth: 400 }}>
+                    <h2 className="t-title mb-sm">Something went wrong</h2>
+                    <p className="t-body text-secondary mb-md">This page or link couldn't be displayed.</p>
+                    <Button className="w-full" onClick={() => { window.location.href = window.location.pathname; }}>
+                        Start fresh
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<ErrorBoundary><App /></ErrorBoundary>);
 
 </script>
 </body>
