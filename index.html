@@ -9,15 +9,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,700;1,9..144,300;1,9..144,400;1,9..144,700&display=swap" rel="stylesheet">
     
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EGMHH5P1HW"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-EGMHH5P1HW');
-    </script>
-
     <!-- Pinned to exact versions with Subresource Integrity. To upgrade, change the
          version AND recompute the hash:
          curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A -->
@@ -977,7 +968,6 @@ const formatAmountParam = (amount) => {
 const openVenmo = (handle, amount, note) => {
     const h = sanitizeVenmoHandle(handle);
     if (!h) return;
-    gtag('event', 'venmo_deep_link');
     const amt = encodeURIComponent(formatAmountParam(amount));
     const n = encodeURIComponent(cleanStr(note, 60));
     const user = encodeURIComponent(h);
@@ -1203,7 +1193,7 @@ const ApiKeyGate = ({ onSave, onDismiss, provider = 'anthropic' }) => {
                     </div>
                 </div>
                 <p className="t-body text-secondary mb-md">
-                    Tiago never touches a server. Your {p.label} key powers receipt scanning directly from your browser — nothing is stored or transmitted anywhere else.
+                    Your key goes straight from your browser to {p.label}. Tiago never sees or stores it.
                 </p>
                 <Input
                     label={`${p.label} API Key`}
@@ -1402,7 +1392,6 @@ const ReceiptScanner = ({ apiKey, onComplete, onManual }) => {
         setError(null);
         try {
             const parsed = await extractReceipt({ apiKey, image: imageData });
-            gtag('event', 'receipt_scan', { method: 'claude_ai' });
             onComplete({ ...parsed, imagePreview: preview });
         } catch (err) {
             setError(err instanceof ReceiptParseError ? 'Could not read receipt. Try manual entry.' : (err.message || 'Something went wrong.'));
@@ -1842,7 +1831,6 @@ const SplitEditor = ({ receipt, people, onComplete, savedState, onStateChange, o
     const percentTotal = people.reduce((sum, p) => sum + (parseFloat(percents[p.id]) || 0), 0);
 
     const handleComplete = () => {
-        gtag('event', 'bill_split_completed', { split_mode: splitMode, people_count: people.length });
         onComplete({
             people,
             shares: getShares(),
@@ -2091,7 +2079,6 @@ const Summary = ({ result, onNew, onBack, onUpdatePerson }) => {
     };
 
     const copyAmountForVenmo = async (person, amount) => {
-        gtag('event', 'venmo_link_click');
         try {
             await navigator.clipboard.writeText(formatAmountParam(amount));
             setCopiedPerson(person.id);

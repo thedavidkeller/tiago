@@ -1,0 +1,12 @@
+# Design and source files: never deploy these.
+*.psd
+*.ai
+*.sketch
+*.fig
+*.xd
+*.afdesign
+*.afphoto
+design/
+assets-src/
+tiago*.png
+.claude/
