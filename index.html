@@ -580,9 +580,14 @@
             color: var(--text-tertiary);
             border: 1px solid var(--border-hover);
             border-radius: var(--radius-xs);
-            padding: 3px 5px 2px;
+            /* Uneven padding is on purpose: this monospace's caps sit high in a
+               line-height:1 box, so 4/2 centers BYOK optically inside the pill. */
+            padding: 4px 5px 2px;
             white-space: nowrap;
             user-select: none;
+            /* The wrapper aligns on baseline; this lifts the pill so its midpoint
+               sits on the x-height midpoint of "/ the splitter". */
+            transform: translateY(-1px);
         }
 
         .api-gate {
@@ -3779,7 +3784,7 @@ const App = () => {
                             <img src={LOGO_IMG_SRC} alt="" style={{ width: 96, height: 96, borderRadius: 0 }} />
                         </h1>
                     </div>
-                    <div style={{ textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px 8px', flexWrap: 'wrap' }}>
+                    <div style={{ textAlign: 'center', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '4px 8px', flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-tertiary)', fontSize: 20, fontWeight: 300, letterSpacing: '-0.01em' }}>
                             / the splitter
                         </span>
