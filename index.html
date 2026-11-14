@@ -728,19 +728,27 @@ const cleanDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
 const sanitizeVenmoHandle = (v) =>
     cleanStr(v, 40).replace(/^@/, '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30);
 
-const sanitizePeople = (arr) =>
-    (Array.isArray(arr) ? arr : []).slice(0, MAX_PEOPLE)
+// keepPlaceholder: keep the isPlaceholder flag (local trip storage). Share links
+// leave it out so their payloads stay as they were.
+const sanitizePeople = (arr, keepPlaceholder = false) => {
+    const seen = new Set();
+    return (Array.isArray(arr) ? arr : []).slice(0, MAX_PEOPLE)
         .filter(p => p && typeof p === 'object')
         .map((p, i) => {
+            let id = cleanId(p.id);
+            while (!id || seen.has(id)) id = genId(); // unique ids -> unique React keys
+            seen.add(id);
             const out = {
-                id: cleanId(p.id) || genId(),
+                id,
                 name: cleanStr(p.name, 40) || `Person ${i + 1}`,
                 color: cleanColor(p.color, PERSON_COLORS[i % PERSON_COLORS.length]),
             };
             const venmo = sanitizeVenmoHandle(p.venmo);
             if (venmo) out.venmo = venmo;
+            if (keepPlaceholder && p.isPlaceholder === true) out.isPlaceholder = true;
             return out;
         });
+};
 
 // Normalizes a receipt from OCR or a share link. Returns null if it's unusable.
 const sanitizeReceipt = (r) => {
@@ -1120,7 +1128,8 @@ const Checkbox = ({ checked, onChange, label }) => (
 // ─── PEOPLE HELPERS ────────────────────────────────────────────────────────
 
 const MIN_PEOPLE = 1;
-const MAX_HEADCOUNT = 15;
+const MAX_HEADCOUNT = 30;
+const DEFAULT_HEADCOUNT = 2;
 
 // Applies { name?, venmo? } to a person. Giving a name clears isPlaceholder.
 const applyPersonPatch = (person, patch) => {
@@ -1129,17 +1138,58 @@ const applyPersonPatch = (person, patch) => {
     return next;
 };
 
-// Builds a people list of `count` (including "You", who is always first).
-// Existing people are kept in order with their ids, names and Venmo handles,
-// so going back and forth never loses names or split assignments.
+// "Person 7" -> 7 for placeholder people, 0 otherwise.
+const placeholderNum = (p) => {
+    const m = p?.isPlaceholder && /^Person (\d+)$/.exec(p.name);
+    return m ? Number(m[1]) : 0;
+};
+
+// Builds a people list of `count` (including "You", who is always first and never
+// removed). Existing people are kept in order with their ids, names and Venmo
+// handles, so going back and forth never loses names or split assignments.
+// Shrinking removes placeholders first (highest-numbered first), then named people
+// from the end. Growing adds "Person N" placeholders using the lowest free numbers.
 const peopleFromCount = (existing, count) => {
+    const target = Math.max(MIN_PEOPLE, Math.floor(count) || MIN_PEOPLE);
     const you = existing?.[0] || { id: genId(), name: 'You', color: YOU_COLOR };
-    const others = (existing || []).slice(1, count);
-    for (let i = others.length; i < count - 1; i++) {
-        others.push({ id: genId(), name: `Person ${i + 1}`, color: PERSON_COLORS[i % PERSON_COLORS.length], isPlaceholder: true });
+    let others = (existing || []).slice(1);
+    while (others.length > target - 1) {
+        let idx = -1, best = -1;
+        others.forEach((p, i) => {
+            if (p.isPlaceholder && placeholderNum(p) >= best) { best = placeholderNum(p); idx = i; }
+        });
+        if (idx === -1) idx = others.length - 1;
+        others = others.filter((_, i) => i !== idx);
+    }
+    const taken = new Set([you, ...others].map(p => p.name));
+    let n = 1;
+    while (others.length < target - 1) {
+        while (taken.has(`Person ${n}`)) n++;
+        const i = others.length;
+        others.push({ id: genId(), name: `Person ${n}`, color: PERSON_COLORS[i % PERSON_COLORS.length], isPlaceholder: true });
+        taken.add(`Person ${n}`);
     }
     return [you, ...others];
 };
+
+// Named (non-placeholder) people that peopleFromCount(people, count) would drop.
+const namedRemovedByCount = (people, count) => {
+    const kept = new Set(peopleFromCount(people, count).map(p => p.id));
+    return (people || []).filter(p => !kept.has(p.id) && !p.isPlaceholder);
+};
+
+// − N + headcount control. Same look everywhere it appears.
+const HeadcountStepper = ({ value, onChange, min = MIN_PEOPLE, max = MAX_HEADCOUNT }) => (
+    <div className="flex items-center gap-sm" style={{ flexShrink: 0 }}>
+        <button type="button" className="stepper-btn" aria-label="Fewer people" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>
+            <Icon name="minus" size={16} />
+        </button>
+        <span aria-live="polite" style={{ fontSize: 22, fontWeight: 600, minWidth: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+        <button type="button" className="stepper-btn" aria-label="More people" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>
+            <Icon name="plus" size={16} />
+        </button>
+    </div>
+);
 
 // A person's name. For placeholder people ("Person 1"), it is tappable and turns
 // into an input; Enter or blur saves, Escape cancels.
@@ -1604,7 +1654,7 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
     const [venmoInput, setVenmoInput] = React.useState('');
 
     const addPerson = () => {
-        if (!newName.trim()) return;
+        if (!newName.trim() || people.length >= MAX_HEADCOUNT) return;
         // Count non-You people to pick next color
         const othersCount = people.length - 1;
         const newPerson = { id: genId(), name: newName.trim(), color: PERSON_COLORS[othersCount % PERSON_COLORS.length] };
@@ -1659,15 +1709,7 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                         <p style={{ fontWeight: 500 }}>How many people?</p>
                         <p className="t-caption text-tertiary mt-1">Including you</p>
                     </div>
-                    <div className="flex items-center gap-sm">
-                        <button className="stepper-btn" aria-label="Fewer people" disabled={count <= MIN_PEOPLE} onClick={() => setCount(c => Math.max(MIN_PEOPLE, c - 1))}>
-                            <Icon name="minus" size={16} />
-                        </button>
-                        <span aria-live="polite" style={{ fontSize: 22, fontWeight: 600, minWidth: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{count}</span>
-                        <button className="stepper-btn" aria-label="More people" disabled={count >= MAX_HEADCOUNT} onClick={() => setCount(c => Math.min(MAX_HEADCOUNT, c + 1))}>
-                            <Icon name="plus" size={16} />
-                        </button>
-                    </div>
+                    <HeadcountStepper value={count} onChange={setCount} />
                 </div>
             </div>
             ) : (
@@ -1730,7 +1772,7 @@ const PeopleSetup = ({ onComplete, initialPeople }) => {
                         style={{ height: 52, fontSize: 16 }}
                     />
                 </div>
-                <Button variant="secondary" onClick={addPerson} disabled={!newName.trim()} icon="plus">
+                <Button variant="secondary" onClick={addPerson} disabled={!newName.trim() || people.length >= MAX_HEADCOUNT} icon="plus">
                     Add
                 </Button>
             </div>
@@ -2819,13 +2861,49 @@ const SharedTripView = ({ data }) => {
 const TRIPS_KEY = 'tiago-trips-v1';
 const TRIP_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+// Stored trips are untrusted too (devtools, extensions, older app versions).
+// Valid data passes through as-is; malformed fields are repaired or dropped.
+// Headcount is people.length; a trip with no people shows DEFAULT_HEADCOUNT.
+const sanitizeStoredTrip = (t) => {
+    if (!t || typeof t !== 'object' || !Number.isFinite(t.createdAt)) return null;
+    const people = sanitizePeople(t.people, true);
+    const ids = new Set(people.map(p => p.id));
+    const seen = new Set();
+    const receipts = (Array.isArray(t.receipts) ? t.receipts : []).slice(0, MAX_RECEIPTS)
+        .filter(r => r && typeof r === 'object')
+        .map(r => {
+            let id = cleanId(r.id);
+            while (!id || seen.has(id)) id = genId();
+            seen.add(id);
+            const paidBy = cleanId(r.paidBy);
+            return {
+                id,
+                restaurant: cleanStr(r.restaurant) || 'Receipt',
+                total: cleanNum(r.total),
+                date: cleanDate(r.date),
+                addedAt: Number.isFinite(r.addedAt) ? r.addedAt : t.createdAt,
+                items: (Array.isArray(r.items) ? r.items : []).slice(0, MAX_ITEMS)
+                    .filter(i => i && typeof i === 'object')
+                    .map(i => ({ ...(cleanId(i.id) ? { id: cleanId(i.id) } : {}), name: cleanStr(i.name) || 'Item', price: cleanNum(i.price) })),
+                subtotal: cleanNum(r.subtotal),
+                tax: cleanNum(r.tax),
+                tip: cleanNum(r.tip),
+                paidBy: ids.has(paidBy) ? paidBy : null,
+            };
+        });
+    return { id: cleanId(t.id) || genId(), name: cleanStr(t.name, 60) || 'Trip', createdAt: t.createdAt, people, receipts };
+};
+
 const loadTrips = () => {
     try {
         const raw = localStorage.getItem(TRIPS_KEY);
         if (!raw) return [];
         const all = JSON.parse(raw);
+        if (!Array.isArray(all)) return [];
         const now = Date.now();
-        return all.filter(t => now - t.createdAt < TRIP_TTL_MS);
+        const seen = new Set();
+        return all.map(sanitizeStoredTrip)
+            .filter(t => t && now - t.createdAt < TRIP_TTL_MS && !seen.has(t.id) && seen.add(t.id));
     } catch { return []; }
 };
 
@@ -3105,11 +3183,33 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
     const [youDraftName, setYouDraftName] = React.useState('');
     const [pendingVenmoId, setPendingVenmoId] = React.useState(null);
     const [venmoInput, setVenmoInput] = React.useState('');
+    const [showAllPeople, setShowAllPeople] = React.useState(false);
     const grandTotal = trip.receipts.reduce((s, r) => s + (r.total || 0), 0);
     const people = trip.people || [];
+    // Headcount is the people list. Trips saved before headcounts existed may have
+    // no people yet; they show the default until the count or a name is changed.
+    const headcount = people.length || DEFAULT_HEADCOUNT;
+    const perPerson = grandTotal / headcount;
+
+    // Long lists collapse so receipts and actions stay near the top. A chip with a
+    // pending removal warning always stays visible.
+    const CHIP_LIMIT = 8;
+    const collapsed = !showAllPeople && people.length > CHIP_LIMIT;
+    const visiblePeople = collapsed
+        ? people.filter((p, i) => i < CHIP_LIMIT || p.id === pendingRemoveId)
+        : people;
+
+    const setHeadcount = (n) => {
+        setPendingVenmoId(null);
+        if (people.length === 0) { onUpdatePeople(peopleFromCount([], n)); return; }
+        const named = namedRemovedByCount(people, n);
+        if (named.length > 0) { setPendingRemoveId(named[named.length - 1].id); return; }
+        setPendingRemoveId(null);
+        onUpdatePeople(peopleFromCount(people, n));
+    };
 
     const addPerson = () => {
-        if (!newPersonName.trim()) return;
+        if (!newPersonName.trim() || people.length >= MAX_HEADCOUNT) return;
         const othersCount = people.filter(p => p.color !== YOU_COLOR).length;
         const newPerson = { id: genId(), name: newPersonName.trim(), color: PERSON_COLORS[othersCount % PERSON_COLORS.length] };
         onUpdatePeople([...people, newPerson]);
@@ -3151,7 +3251,13 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                         {trip.receipts.length} receipt{trip.receipts.length !== 1 ? 's' : ''} · {tripDaysRemaining(trip.createdAt)}d left
                     </p>
                 </div>
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 300, color: 'var(--primary)' }}>{formatCurrency(grandTotal)}</span>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 300, color: 'var(--primary)' }}>{formatCurrency(grandTotal)}</span>
+                    <p className="t-caption text-tertiary" style={{ fontSize: 12 }}>
+                        Per person so far: <span style={{ fontWeight: 600, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(perPerson)}</span>
+                    </p>
+                    <p className="t-caption text-tertiary" style={{ fontSize: 11 }}>Estimate · ÷ {headcount} until you split</p>
+                </div>
             </div>
             {trip.receipts.length === 0 ? (
                 <div className="card p-lg text-center mb-md" style={{ borderStyle: 'dashed' }}>
@@ -3200,13 +3306,18 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
 
             {/* ── PEOPLE SECTION ── */}
             <div className="mb-md">
-                <p className="t-caption text-tertiary mb-xs" style={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: 10 }}>People</p>
+                <div className="flex items-center justify-between mb-xs" style={{ gap: 12 }}>
+                    <p className="t-caption text-tertiary" style={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: 10 }}>
+                        {headcount} {headcount === 1 ? 'person' : 'people'}
+                    </p>
+                    <HeadcountStepper value={headcount} onChange={setHeadcount} />
+                </div>
                 {people.length === 0 && !addingPerson && (
-                    <p className="t-caption text-tertiary mb-xs">Add people to split with.</p>
+                    <p className="t-caption text-tertiary mb-xs">Add names, or change the count to get placeholders.</p>
                 )}
                 {people.length > 0 && (
-                    <div className="flex flex-wrap gap-xs mb-xs">
-                        {people.map((p) => {
+                    <div className="flex wrap gap-xs mb-xs">
+                        {visiblePeople.map((p) => {
                             const isYou = p.color === YOU_COLOR;
                             const isPending = pendingRemoveId === p.id;
                             if (isPending) {
@@ -3254,6 +3365,17 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                                 </div>
                             );
                         })}
+                        {people.length > CHIP_LIMIT && (
+                            <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                style={{ color: 'var(--text-secondary)', fontSize: 12, padding: '4px 10px', borderRadius: 'var(--radius-full)', border: '1px dashed var(--border-divider)', height: 'auto', minHeight: 'unset' }}
+                                onClick={() => setShowAllPeople(v => !v)}
+                                aria-expanded={!collapsed}
+                            >
+                                {collapsed ? `Show all ${people.length} people` : 'Show fewer'}
+                            </button>
+                        )}
                     </div>
                 )}
                 {addingPerson ? (
@@ -3261,6 +3383,7 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                         <input
                             className="input-field"
                             placeholder="Name"
+                            maxLength={40}
                             value={newPersonName}
                             onChange={e => setNewPersonName(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') addPerson(); if (e.key === 'Escape') { setAddingPerson(false); setNewPersonName(''); } }}
@@ -3272,10 +3395,12 @@ const TripDetail = ({ trip, onBack, onAddReceipt, onSplitUp, onSetupPeople, onDe
                             <Icon name="x" size={14} />
                         </button>
                     </div>
-                ) : (
+                ) : people.length < MAX_HEADCOUNT ? (
                     <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-secondary)', paddingLeft: 0, fontSize: 13 }} onClick={() => { setAddingPerson(true); setPendingVenmoId(null); }}>
                         <Icon name="plus" size={12} /> Add person
                     </button>
+                ) : (
+                    <p className="t-caption text-tertiary">{MAX_HEADCOUNT} people max.</p>
                 )}
                 {pendingVenmoId && (
                     <div className="flex gap-xs items-center mt-xs fade-up">
@@ -3317,6 +3442,7 @@ const TripsMode = ({ apiKey }) => {
     const [view, setView] = React.useState('list'); // list | create | detail | scan | items | people | split
     const [selectedId, setSelectedId] = React.useState(null);
     const [newTripName, setNewTripName] = React.useState('');
+    const [newTripCount, setNewTripCount] = React.useState(DEFAULT_HEADCOUNT);
     const [transitioning, setTransitioning] = React.useState(false);
 
     const selectedTrip = trips.find(t => t.id === selectedId) || null;
@@ -3336,11 +3462,12 @@ const TripsMode = ({ apiKey }) => {
 
     const handleCreateTrip = () => {
         if (!newTripName.trim()) return;
-        const trip = { id: genId(), name: newTripName.trim(), createdAt: Date.now(), people: [], receipts: [] };
+        const trip = { id: genId(), name: cleanStr(newTripName, 60), createdAt: Date.now(), people: peopleFromCount([], newTripCount), receipts: [] };
         const next = [trip, ...trips];
         setTrips(next);
         saveTrips(next);
         setNewTripName('');
+        setNewTripCount(DEFAULT_HEADCOUNT);
         setSelectedId(trip.id);
         nav('detail');
     };
@@ -3464,6 +3591,13 @@ const TripsMode = ({ apiKey }) => {
                         onKeyDown={e => e.key === 'Enter' && handleCreateTrip()}
                         autoFocus
                     />
+                    <div className="card p-sm flex items-center justify-between mt-md">
+                        <div>
+                            <p style={{ fontWeight: 500 }}>How many people?</p>
+                            <p className="t-caption text-tertiary mt-1">Including you · optional, change it any time</p>
+                        </div>
+                        <HeadcountStepper value={newTripCount} onChange={setNewTripCount} />
+                    </div>
                     <Button className="w-full mt-md" onClick={handleCreateTrip} disabled={!newTripName.trim()} icon="arrowRight" iconRight="arrowRight">
                         Create trip
                     </Button>
